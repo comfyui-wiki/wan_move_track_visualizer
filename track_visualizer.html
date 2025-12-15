@@ -259,6 +259,128 @@
             color: white;
             border-color: #3498db;
         }
+        
+        .track-header {
+            background: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .track-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            flex: 1;
+            padding: 5px 0;
+            max-height: 80px;
+            overflow-y: auto;
+        }
+        
+        .track-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .track-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .track-list::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+        
+        .track-list::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        .track-item {
+            display: flex;
+            align-items: center;
+            padding: 6px 12px;
+            border: 2px solid #ddd;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+            white-space: nowrap;
+            min-width: fit-content;
+        }
+        
+        .track-item:hover {
+            border-color: #3498db;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .track-item.active {
+            background-color: #3498db;
+            border-color: #3498db;
+            color: white;
+            box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3);
+        }
+        
+        .track-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            margin-right: 6px;
+            border: 2px solid #fff;
+        }
+        
+        .track-item.active .track-color {
+            border-color: rgba(255,255,255,0.8);
+        }
+        
+        .track-name {
+            font-size: 12px;
+            font-weight: 500;
+            margin-right: 6px;
+        }
+        
+        .track-visibility {
+            margin-left: 4px;
+        }
+        
+        .track-visibility input[type="checkbox"] {
+            margin: 0;
+            width: 14px;
+            height: 14px;
+        }
+        
+        .track-controls {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .track-btn {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .track-btn:hover {
+            background: #f8f9fa;
+            border-color: #3498db;
+        }
+        
+        .track-btn.primary {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+        
+        .track-btn.primary:hover {
+            background: #2980b9;
+        }
     </style>
 </head>
 <body>
@@ -270,6 +392,16 @@
         
         <div class="main-content">
             <div class="canvas-section">
+                <div class="track-header">
+                    <span style="font-weight: 500; color: #2c3e50;">Tracks:</span>
+                    <div class="track-list" id="trackList">
+                        <!-- Track items will be dynamically added here -->
+                    </div>
+                    <div class="track-controls">
+                        <button class="track-btn primary" onclick="addNewTrack()">Add</button>
+                        <button class="track-btn" onclick="deleteActiveTrack()">Delete</button>
+                    </div>
+                </div>
                 <div class="canvas-container">
                     <canvas id="trackCanvas" width="720" height="720"></canvas>
                 </div>
@@ -420,16 +552,22 @@
         
         let isDragging = false;
         let dragTarget = null;
-        let tracks = [];
-        let startPoint = { x: 0.1, y: 0.5 };
-        let endPoint = { x: 0.9, y: 0.5 };
-        let midPoint = { x: 0.5, y: 0.3 };
+        let dragTrackId = null;
+        let allTracks = []; // Array of track objects
+        let activeTrackId = 0; // Currently selected track
+        let trackIdCounter = 0; // For generating unique IDs
         let backgroundImage = null;
         let originalImage = null;
         let scaledImage = null;
         let imageFitMode = 'contain';
         let imageScale = 1;
         let imageOffset = { x: 0, y: 0 };
+        
+        // Track colors
+        const trackColors = [
+            '#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6',
+            '#1abc9c', '#e67e22', '#34495e', '#e91e63', '#673ab7'
+        ];
         
         // Initialize event listeners
         function initializeEventListeners() {
@@ -762,12 +900,7 @@
         }
         
         function updateFromControls() {
-            startPoint.x = parseFloat(document.getElementById('startX').value);
-            startPoint.y = parseFloat(document.getElementById('startY').value);
-            endPoint.x = parseFloat(document.getElementById('endX').value);
-            endPoint.y = parseFloat(document.getElementById('endY').value);
-            midPoint.x = parseFloat(document.getElementById('midX').value);
-            midPoint.y = parseFloat(document.getElementById('midY').value);
+            saveActiveTrackParams();
             updatePreview();
         }
         
@@ -776,22 +909,46 @@
             // Convert from display coordinates to logical coordinates
             const x = (e.clientX - rect.left) / rect.width;
             const y = (e.clientY - rect.top) / rect.height;
+            const pixelX = x * canvas.width;
+            const pixelY = y * canvas.height;
             
-            // Check if clicking near existing points
+            // First, check if clicking on a track label
+            for (let label of trackLabels) {
+                const distance = Math.sqrt((pixelX - label.x) ** 2 + (pixelY - label.y) ** 2);
+                if (distance <= label.radius) {
+                    setActiveTrack(label.trackId);
+                    return;
+                }
+            }
+            
+            const activeTrack = getActiveTrack();
+            if (!activeTrack) return;
+            
+            // Check if clicking near existing control points
             const threshold = 0.05;
-            if (Math.abs(x - startPoint.x) < threshold && Math.abs(y - startPoint.y) < threshold) {
+            if (Math.abs(x - activeTrack.startPoint.x) < threshold && Math.abs(y - activeTrack.startPoint.y) < threshold) {
                 dragTarget = 'start';
+                dragTrackId = activeTrack.id;
                 isDragging = true;
-            } else if (Math.abs(x - endPoint.x) < threshold && Math.abs(y - endPoint.y) < threshold) {
+            } else if (Math.abs(x - activeTrack.endPoint.x) < threshold && Math.abs(y - activeTrack.endPoint.y) < threshold) {
                 dragTarget = 'end';
+                dragTrackId = activeTrack.id;
                 isDragging = true;
-            } else if (document.getElementById('bezierEnable').checked && 
-                       Math.abs(x - midPoint.x) < threshold && Math.abs(y - midPoint.y) < threshold) {
+            } else if (activeTrack.bezier && 
+                       Math.abs(x - activeTrack.midPoint.x) < threshold && Math.abs(y - activeTrack.midPoint.y) < threshold) {
                 dragTarget = 'mid';
+                dragTrackId = activeTrack.id;
                 isDragging = true;
             } else {
-                // Set new start point
-                startPoint = { x, y };
+                // Check if clicking on any track to select it
+                let clickedTrackId = findTrackAtPosition(x, y);
+                if (clickedTrackId !== null && clickedTrackId !== activeTrack.id) {
+                    setActiveTrack(clickedTrackId);
+                    return;
+                }
+                
+                // Set new start point for active track
+                activeTrack.startPoint = { x, y };
                 document.getElementById('startX').value = x;
                 document.getElementById('startY').value = y;
                 document.getElementById('startXValue').textContent = x.toFixed(2);
@@ -808,20 +965,23 @@
             const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
             const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
             
+            const draggedTrack = allTracks.find(track => track.id === dragTrackId);
+            if (!draggedTrack) return;
+            
             if (dragTarget === 'start') {
-                startPoint = { x, y };
+                draggedTrack.startPoint = { x, y };
                 document.getElementById('startX').value = x;
                 document.getElementById('startY').value = y;
                 document.getElementById('startXValue').textContent = x.toFixed(2);
                 document.getElementById('startYValue').textContent = y.toFixed(2);
             } else if (dragTarget === 'end') {
-                endPoint = { x, y };
+                draggedTrack.endPoint = { x, y };
                 document.getElementById('endX').value = x;
                 document.getElementById('endY').value = y;
                 document.getElementById('endXValue').textContent = x.toFixed(2);
                 document.getElementById('endYValue').textContent = y.toFixed(2);
             } else if (dragTarget === 'mid') {
-                midPoint = { x, y };
+                draggedTrack.midPoint = { x, y };
                 document.getElementById('midX').value = x;
                 document.getElementById('midY').value = y;
                 document.getElementById('midXValue').textContent = x.toFixed(2);
@@ -834,33 +994,28 @@
         function onMouseUp() {
             isDragging = false;
             dragTarget = null;
+            dragTrackId = null;
         }
         
-        function generateTracks() {
-            const numFrames = parseInt(document.getElementById('numFrames').value);
-            const numTracks = parseInt(document.getElementById('numTracks').value);
-            const trackSpread = parseFloat(document.getElementById('trackSpread').value);
-            const bezierEnable = document.getElementById('bezierEnable').checked;
-            const interpolation = document.getElementById('interpolation').value;
-            
+        function generateTracksForSingle(trackObj) {
             const width = canvas.width;
             const height = canvas.height;
-            const startXPx = startPoint.x * width;
-            const startYPx = startPoint.y * height;
-            const midXPx = midPoint.x * width;
-            const midYPx = midPoint.y * height;
-            const endXPx = endPoint.x * width;
-            const endYPx = endPoint.y * height;
-            const trackSpreadPx = trackSpread * (width + height) / 2;
+            const startXPx = trackObj.startPoint.x * width;
+            const startYPx = trackObj.startPoint.y * height;
+            const midXPx = trackObj.midPoint.x * width;
+            const midYPx = trackObj.midPoint.y * height;
+            const endXPx = trackObj.endPoint.x * width;
+            const endYPx = trackObj.endPoint.y * height;
+            const trackSpreadPx = trackObj.trackSpread * (width + height) / 2;
             
-            tracks = [];
+            const tracks = [];
             
-            for (let frame = 0; frame < numFrames; frame++) {
-                const t = frame / (numFrames - 1);
+            for (let frame = 0; frame < trackObj.numFrames; frame++) {
+                const t = frame / (trackObj.numFrames - 1);
                 let interpValue;
                 
                 // Apply interpolation
-                switch (interpolation) {
+                switch (trackObj.interpolation) {
                     case 'constant':
                         interpValue = 0;
                         break;
@@ -882,7 +1037,7 @@
                 
                 let x, y, tangentX, tangentY;
                 
-                if (bezierEnable) {
+                if (trackObj.bezier) {
                     const tInterp = interpValue;
                     const oneMinusT = 1 - tInterp;
                     x = oneMinusT * oneMinusT * startXPx + 2 * oneMinusT * tInterp * midXPx + tInterp * tInterp * endXPx;
@@ -905,23 +1060,36 @@
                 }
                 
                 const frameData = [];
-                for (let trackIdx = 0; trackIdx < numTracks; trackIdx++) {
-                    const offset = (trackIdx - (numTracks - 1) / 2) * trackSpreadPx;
+                for (let trackIdx = 0; trackIdx < trackObj.numTracks; trackIdx++) {
+                    const offset = (trackIdx - (trackObj.numTracks - 1) / 2) * trackSpreadPx;
                     const trackX = x + perpX * offset;
                     const trackY = y + perpY * offset;
                     frameData.push({ x: trackX, y: trackY });
                 }
                 tracks.push(frameData);
             }
+            
+            return tracks;
+        }
+        
+        function generateAllTracks() {
+            // Save current active track params
+            saveActiveTrackParams();
+            
+            // Generate tracks for all track objects
+            allTracks.forEach(trackObj => {
+                trackObj.generatedTracks = generateTracksForSingle(trackObj);
+            });
         }
         
         function updatePreview() {
-            generateTracks();
+            generateAllTracks();
             drawTracks();
         }
         
         function drawTracks() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            trackLabels = []; // Clear previous label positions
             
             // Draw background image if available
             if (backgroundImage) {
@@ -948,86 +1116,150 @@
                 }
             }
             
-            if (tracks.length === 0) return;
-            
-            // Draw track paths
-            const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6'];
-            const numTracks = tracks[0].length;
-            
-            for (let trackIdx = 0; trackIdx < numTracks; trackIdx++) {
-                ctx.strokeStyle = colors[trackIdx % colors.length];
-                ctx.fillStyle = colors[trackIdx % colors.length];
-                ctx.lineWidth = 2;
-                ctx.beginPath();
+            // Draw all tracks
+            allTracks.forEach((trackObj, trackIndex) => {
+                if (!trackObj.visible || !trackObj.generatedTracks || trackObj.generatedTracks.length === 0) return;
                 
-                for (let frameIdx = 0; frameIdx < tracks.length; frameIdx++) {
-                    const point = tracks[frameIdx][trackIdx];
-                    if (frameIdx === 0) {
-                        ctx.moveTo(point.x, point.y);
-                    } else {
-                        ctx.lineTo(point.x, point.y);
+                const tracks = trackObj.generatedTracks;
+                const opacity = trackObj.active ? 1.0 : 0.4;
+                const color = trackObj.color;
+                const numTracks = tracks[0].length;
+                
+                // Set opacity for inactive tracks
+                ctx.globalAlpha = opacity;
+                
+                // Draw track paths
+                for (let trackIdx = 0; trackIdx < numTracks; trackIdx++) {
+                    ctx.strokeStyle = color;
+                    ctx.fillStyle = color;
+                    ctx.lineWidth = trackObj.active ? 3 : 2;
+                    ctx.beginPath();
+                    
+                    for (let frameIdx = 0; frameIdx < tracks.length; frameIdx++) {
+                        const point = tracks[frameIdx][trackIdx];
+                        if (frameIdx === 0) {
+                            ctx.moveTo(point.x, point.y);
+                        } else {
+                            ctx.lineTo(point.x, point.y);
+                        }
+                    }
+                    ctx.stroke();
+                    
+                    // Draw arrows along the path
+                    if (trackObj.active) {
+                        drawArrowsOnPath(tracks, trackIdx, color);
+                    }
+                    
+                    // Draw track points
+                    for (let frameIdx = 0; frameIdx < tracks.length; frameIdx += Math.max(1, Math.floor(tracks.length / 20))) {
+                        const point = tracks[frameIdx][trackIdx];
+                        ctx.fillStyle = color;
+                        ctx.beginPath();
+                        ctx.arc(point.x, point.y, trackObj.active ? 4 : 2, 0, 2 * Math.PI);
+                        ctx.fill();
                     }
                 }
-                ctx.stroke();
                 
-                // Draw arrows along the path
-                drawArrowsOnPath(tracks, trackIdx, colors[trackIdx % colors.length]);
-                
-                // Draw track points
-                for (let frameIdx = 0; frameIdx < tracks.length; frameIdx += Math.max(1, Math.floor(tracks.length / 20))) {
-                    const point = tracks[frameIdx][trackIdx];
-                    ctx.fillStyle = colors[trackIdx % colors.length];
-                    ctx.beginPath();
-                    ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
-                    ctx.fill();
-                }
-            }
+                // Draw track number label at track center
+                const centerFrameIdx = Math.floor(tracks.length / 2);
+                const centerPoint = tracks[centerFrameIdx][Math.floor(numTracks / 2)];
+                drawTrackLabel(centerPoint.x, centerPoint.y, trackIndex + 1, color, trackObj.active, trackObj.id);
+            });
             
-            // Draw control points
-            const bezierEnabled = document.getElementById('bezierEnable').checked;
+            // Reset alpha for control points
+            ctx.globalAlpha = 1.0;
             
-            // Start point
-            ctx.fillStyle = '#e74c3c';
-            ctx.beginPath();
-            ctx.arc(startPoint.x * canvas.width, startPoint.y * canvas.height, 8, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.fillStyle = 'white';
-            ctx.beginPath();
-            ctx.arc(startPoint.x * canvas.width, startPoint.y * canvas.height, 5, 0, 2 * Math.PI);
-            ctx.fill();
-            
-            // End point
-            ctx.fillStyle = '#27ae60';
-            ctx.beginPath();
-            ctx.arc(endPoint.x * canvas.width, endPoint.y * canvas.height, 8, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.fillStyle = 'white';
-            ctx.beginPath();
-            ctx.arc(endPoint.x * canvas.width, endPoint.y * canvas.height, 5, 0, 2 * Math.PI);
-            ctx.fill();
-            
-            // Mid point (bezier control)
-            if (bezierEnabled) {
-                ctx.fillStyle = '#f39c12';
+            // Draw control points for active track only
+            const activeTrack = getActiveTrack();
+            if (activeTrack) {
+                // Start point
+                ctx.fillStyle = '#e74c3c';
                 ctx.beginPath();
-                ctx.arc(midPoint.x * canvas.width, midPoint.y * canvas.height, 8, 0, 2 * Math.PI);
+                ctx.arc(activeTrack.startPoint.x * canvas.width, activeTrack.startPoint.y * canvas.height, 8, 0, 2 * Math.PI);
                 ctx.fill();
                 ctx.fillStyle = 'white';
                 ctx.beginPath();
-                ctx.arc(midPoint.x * canvas.width, midPoint.y * canvas.height, 5, 0, 2 * Math.PI);
+                ctx.arc(activeTrack.startPoint.x * canvas.width, activeTrack.startPoint.y * canvas.height, 5, 0, 2 * Math.PI);
                 ctx.fill();
                 
-                // Draw bezier control lines
-                ctx.strokeStyle = '#f39c12';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([5, 5]);
+                // End point
+                ctx.fillStyle = '#27ae60';
                 ctx.beginPath();
-                ctx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
-                ctx.lineTo(midPoint.x * canvas.width, midPoint.y * canvas.height);
-                ctx.lineTo(endPoint.x * canvas.width, endPoint.y * canvas.height);
-                ctx.stroke();
-                ctx.setLineDash([]);
+                ctx.arc(activeTrack.endPoint.x * canvas.width, activeTrack.endPoint.y * canvas.height, 8, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(activeTrack.endPoint.x * canvas.width, activeTrack.endPoint.y * canvas.height, 5, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Mid point (bezier control)
+                if (activeTrack.bezier) {
+                    ctx.fillStyle = '#f39c12';
+                    ctx.beginPath();
+                    ctx.arc(activeTrack.midPoint.x * canvas.width, activeTrack.midPoint.y * canvas.height, 8, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(activeTrack.midPoint.x * canvas.width, activeTrack.midPoint.y * canvas.height, 5, 0, 2 * Math.PI);
+                    ctx.fill();
+                    
+                    // Draw bezier control lines
+                    ctx.strokeStyle = '#f39c12';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(activeTrack.startPoint.x * canvas.width, activeTrack.startPoint.y * canvas.height);
+                    ctx.lineTo(activeTrack.midPoint.x * canvas.width, activeTrack.midPoint.y * canvas.height);
+                    ctx.lineTo(activeTrack.endPoint.x * canvas.width, activeTrack.endPoint.y * canvas.height);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
             }
+        }
+        
+        let trackLabels = []; // Store label positions for click detection
+        
+        function drawTrackLabel(x, y, trackNumber, color, isActive, trackId) {
+            ctx.save();
+            
+            // Store label position for click detection
+            const radius = isActive ? 15 : 12;
+            trackLabels.push({
+                x: x,
+                y: y,
+                radius: radius,
+                trackId: trackId
+            });
+            
+            // Add shadow for better visibility
+            if (isActive) {
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 1;
+                ctx.shadowOffsetY = 1;
+            }
+            
+            ctx.fillStyle = color;
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = isActive ? 3 : 2;
+            ctx.font = isActive ? 'bold 16px Arial' : 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Draw background circle
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Reset shadow for text
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            
+            // Draw number
+            ctx.fillStyle = 'white';
+            ctx.fillText(trackNumber.toString(), x, y);
+            ctx.restore();
         }
         
         function drawArrowsOnPath(tracks, trackIdx, color) {
@@ -1083,8 +1315,34 @@
             ctx.restore();
         }
         
+        function findTrackAtPosition(x, y) {
+            const threshold = 0.08;
+            
+            for (let trackIndex = 0; trackIndex < allTracks.length; trackIndex++) {
+                const trackObj = allTracks[trackIndex];
+                if (!trackObj.visible || !trackObj.generatedTracks || trackObj.generatedTracks.length === 0) continue;
+                
+                const tracks = trackObj.generatedTracks;
+                
+                // Check if clicking near track path
+                for (let frameIdx = 0; frameIdx < tracks.length; frameIdx++) {
+                    for (let trackIdx = 0; trackIdx < tracks[frameIdx].length; trackIdx++) {
+                        const point = tracks[frameIdx][trackIdx];
+                        const pointX = point.x / canvas.width;
+                        const pointY = point.y / canvas.height;
+                        
+                        if (Math.abs(x - pointX) < threshold && Math.abs(y - pointY) < threshold) {
+                            return trackObj.id;
+                        }
+                    }
+                }
+            }
+            
+            return null;
+        }
+        
         function clearCanvas() {
-            tracks = [];
+            allTracks.forEach(track => track.generatedTracks = []);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             document.getElementById('exportOutput').value = '';
         }
@@ -1113,8 +1371,157 @@
             document.getElementById('exportOutput').value = JSON.stringify(exportData, null, 2);
         }
         
+        // Track management functions
+        function createDefaultTrack(id) {
+            return {
+                id: id,
+                name: `Track ${id + 1}`,
+                color: trackColors[id % trackColors.length],
+                visible: true,
+                active: id === 0,
+                startPoint: { x: 0.1, y: 0.5 },
+                endPoint: { x: 0.9, y: 0.5 },
+                midPoint: { x: 0.5, y: 0.3 },
+                bezier: false,
+                interpolation: 'linear',
+                numFrames: 81,
+                numTracks: 5,
+                trackSpread: 0.025,
+                generatedTracks: []
+            };
+        }
+        
+        function initializeTracks() {
+            allTracks = [createDefaultTrack(trackIdCounter++)];
+            activeTrackId = 0;
+            updateTrackList();
+            loadActiveTrackParams();
+        }
+        
+        function addNewTrack() {
+            const newTrack = createDefaultTrack(trackIdCounter++);
+            allTracks.push(newTrack);
+            setActiveTrack(newTrack.id);
+            updateTrackList();
+            updatePreview();
+        }
+        
+        function deleteActiveTrack() {
+            if (allTracks.length <= 1) return; // Keep at least one track
+            
+            allTracks = allTracks.filter(track => track.id !== activeTrackId);
+            
+            // Set new active track
+            if (allTracks.length > 0) {
+                setActiveTrack(allTracks[0].id);
+            }
+            
+            updateTrackList();
+            updatePreview();
+        }
+        
+        function setActiveTrack(trackId) {
+            // Save current active track params before switching
+            saveActiveTrackParams();
+            
+            // Update active states
+            allTracks.forEach(track => track.active = false);
+            const newActiveTrack = allTracks.find(track => track.id === trackId);
+            if (newActiveTrack) {
+                newActiveTrack.active = true;
+                activeTrackId = trackId;
+                loadActiveTrackParams();
+                updateTrackList();
+                updatePreview();
+            }
+        }
+        
+        function getActiveTrack() {
+            return allTracks.find(track => track.id === activeTrackId);
+        }
+        
+        function saveActiveTrackParams() {
+            const activeTrack = getActiveTrack();
+            if (!activeTrack) return;
+            
+            activeTrack.startPoint.x = parseFloat(document.getElementById('startX').value);
+            activeTrack.startPoint.y = parseFloat(document.getElementById('startY').value);
+            activeTrack.endPoint.x = parseFloat(document.getElementById('endX').value);
+            activeTrack.endPoint.y = parseFloat(document.getElementById('endY').value);
+            activeTrack.midPoint.x = parseFloat(document.getElementById('midX').value);
+            activeTrack.midPoint.y = parseFloat(document.getElementById('midY').value);
+            activeTrack.bezier = document.getElementById('bezierEnable').checked;
+            activeTrack.interpolation = document.getElementById('interpolation').value;
+            activeTrack.numFrames = parseInt(document.getElementById('numFrames').value);
+            activeTrack.numTracks = parseInt(document.getElementById('numTracks').value);
+            activeTrack.trackSpread = parseFloat(document.getElementById('trackSpread').value);
+        }
+        
+        function loadActiveTrackParams() {
+            const activeTrack = getActiveTrack();
+            if (!activeTrack) return;
+            
+            document.getElementById('startX').value = activeTrack.startPoint.x;
+            document.getElementById('startY').value = activeTrack.startPoint.y;
+            document.getElementById('endX').value = activeTrack.endPoint.x;
+            document.getElementById('endY').value = activeTrack.endPoint.y;
+            document.getElementById('midX').value = activeTrack.midPoint.x;
+            document.getElementById('midY').value = activeTrack.midPoint.y;
+            document.getElementById('bezierEnable').checked = activeTrack.bezier;
+            document.getElementById('interpolation').value = activeTrack.interpolation;
+            document.getElementById('numFrames').value = activeTrack.numFrames;
+            document.getElementById('numTracks').value = activeTrack.numTracks;
+            document.getElementById('trackSpread').value = activeTrack.trackSpread;
+            
+            // Update display values
+            document.getElementById('startXValue').textContent = activeTrack.startPoint.x.toFixed(2);
+            document.getElementById('startYValue').textContent = activeTrack.startPoint.y.toFixed(2);
+            document.getElementById('endXValue').textContent = activeTrack.endPoint.x.toFixed(2);
+            document.getElementById('endYValue').textContent = activeTrack.endPoint.y.toFixed(2);
+            document.getElementById('midXValue').textContent = activeTrack.midPoint.x.toFixed(2);
+            document.getElementById('midYValue').textContent = activeTrack.midPoint.y.toFixed(2);
+            document.getElementById('trackSpreadValue').textContent = activeTrack.trackSpread.toFixed(3);
+        }
+        
+        function updateTrackList() {
+            const trackList = document.getElementById('trackList');
+            trackList.innerHTML = '';
+            
+            allTracks.forEach(track => {
+                const trackItem = document.createElement('div');
+                trackItem.className = `track-item ${track.active ? 'active' : ''}`;
+                trackItem.onclick = () => setActiveTrack(track.id);
+                
+                trackItem.innerHTML = `
+                    <div class="track-color" style="background-color: ${track.color}"></div>
+                    <span class="track-name">${track.name}</span>
+                    <div class="track-visibility">
+                        <input type="checkbox" ${track.visible ? 'checked' : ''} 
+                               onclick="event.stopPropagation(); toggleTrackVisibility(${track.id})" />
+                    </div>
+                `;
+                
+                trackList.appendChild(trackItem);
+            });
+            
+            // Auto-scroll to active track if needed
+            const activeItem = trackList.querySelector('.track-item.active');
+            if (activeItem) {
+                activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+        
+        function toggleTrackVisibility(trackId) {
+            const track = allTracks.find(t => t.id === trackId);
+            if (track) {
+                track.visible = !track.visible;
+                updatePreview();
+            }
+        }
+        
         // Initialize the application
         initializeEventListeners();
+        initializeTracks();
         updatePreview();
     </script>
 </body>
