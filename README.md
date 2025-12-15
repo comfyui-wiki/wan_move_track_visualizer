@@ -1,6 +1,9 @@
 # WanMove Track Visualizer
 
-A visual track editor and workflow generator for ComfyUI's WanMove model - an interactive HTML tool that allows you to create, edit, and visualize motion trajectories with real-time preview and export capabilities.
+A visual track editor and workflow generator for [ComfyUI](https://github.com/comfyanonymous/ComfyUI/)'s WanMove model - an interactive HTML tool that allows you to create, edit, and visualize motion trajectories with real-time preview and export capabilities.
+
+🔗 **Repository**: https://github.com/comfyui-wiki/wan_move_track_visualizer  
+🌐 **ComfyUI**: https://comfy.org
 
 ## 🌟 Features
 
@@ -36,10 +39,10 @@ A visual track editor and workflow generator for ComfyUI's WanMove model - an in
 
 ### Prerequisites
 - Modern web browser (Chrome, Firefox, Safari, Edge)
-- ComfyUI with WanMove extension installed
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI/) with WanMove extension installed
 
 ### Installation
-1. Clone or download this repository
+1. Clone or download from https://github.com/comfyui-wiki/wan_move_track_visualizer
 2. Open `index.html` in your web browser
 3. Start creating trajectories!
 
@@ -113,8 +116,8 @@ Complete workflow JSON with:
 ### File Structure
 ```
 wantrack_visualizer/
-├── track_visualizer.html    # Main application
-├── data.json               # Sample workflow (basic)
+├── index.html             # Main application
+├── data.json              # Sample workflow (basic)
 ├── data2.json             # Sample workflow (with links)
 └── README.md              # This file
 ```

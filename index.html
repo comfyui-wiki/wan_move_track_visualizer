@@ -3,7 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WanMove Track Visualizer</title>
+    <title>WanMove Track Visualizer - ComfyUI Track Editor</title>
+    
+    <!-- Meta Information -->
+    <meta name="description" content="Visual track editor and workflow generator for ComfyUI's WanMove model. Create, edit, and visualize motion trajectories with real-time preview.">
+    <meta name="keywords" content="ComfyUI, WanMove, track editor, motion trajectories, visual editor, workflow generator">
+    <meta name="author" content="ComfyUI Wiki">
+    
+    <!-- Project Links -->
+    <link rel="canonical" href="https://github.com/comfyui-wiki/wan_move_track_visualizer">
+    
+    <!-- External Links (for reference) -->
+    <!-- ComfyUI Main: https://github.com/comfyanonymous/ComfyUI/ -->
+    <!-- ComfyUI Website: https://comfy.org -->
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -387,7 +399,11 @@
     <div class="container">
         <div class="header">
             <h1>WanMove Track Visualizer</h1>
-            <p>Interactive tool for creating and visualizing motion tracks compatible with GenerateTracks node</p>
+            <p>Interactive tool for creating and visualizing motion tracks compatible with <a href="https://comfy.org" target="_blank" style="color: #3498db; text-decoration: none;">ComfyUI</a>'s WanMove model</p>
+            <p style="margin-top: 5px; font-size: 14px; opacity: 0.8;">
+                <a href="https://github.com/comfyui-wiki/wan_move_track_visualizer" target="_blank" style="color: #ecf0f1; text-decoration: none;">📁 GitHub Repository</a> | 
+                <a href="https://github.com/comfyanonymous/ComfyUI/" target="_blank" style="color: #ecf0f1; text-decoration: none;">⚙️ ComfyUI Main</a>
+            </p>
         </div>
         
         <div class="main-content">
@@ -1747,23 +1763,27 @@
             const trackCoords = [];
             
             visibleTracks.forEach(track => {
+                // Ensure track data is properly generated
+                if (!track.generatedTracks || track.generatedTracks.length === 0) {
+                    return; // Skip tracks with no data
+                }
+                
                 // For each track, we need to create multiple sub-tracks based on numTracks
                 for (let trackIndex = 0; trackIndex < track.numTracks; trackIndex++) {
                     const trackFrames = [];
                     for (let frameIndex = 0; frameIndex < track.numFrames; frameIndex++) {
-                        // Get the coordinate for this specific track and frame
-                        const coordIndex = frameIndex * track.numTracks + trackIndex;
-                        if (coordIndex < track.generatedTracks.length) {
-                            const pixelX = track.generatedTracks[coordIndex][0];
-                            const pixelY = track.generatedTracks[coordIndex][1];
+                        // Access the coordinate using the correct data structure
+                        if (frameIndex < track.generatedTracks.length && trackIndex < track.generatedTracks[frameIndex].length) {
+                            const point = track.generatedTracks[frameIndex][trackIndex];
                             
                             trackFrames.push({
-                                x: pixelX,
-                                y: pixelY
+                                x: point.x,
+                                y: point.y
                             });
                         }
                     }
-                    if (trackFrames.length > 0) {
+                    // Only add tracks with complete frame data
+                    if (trackFrames.length === track.numFrames) {
                         trackCoords.push(trackFrames);
                     }
                 }
