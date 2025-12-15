@@ -475,6 +475,8 @@
                     <div class="track-controls">
                         <button class="track-btn primary" onclick="addNewTrack()">Add</button>
                         <button class="track-btn" onclick="deleteActiveTrack()">Delete</button>
+                        <button class="track-btn" onclick="undo()" id="undoBtn" disabled>↶</button>
+                        <button class="track-btn" onclick="redo()" id="redoBtn" disabled>↷</button>
                     </div>
                 </div>
                 <div class="canvas-container">
@@ -617,12 +619,26 @@
                     
                     <!-- Tab Navigation -->
                     <div class="tab-nav">
-                        <button class="tab-btn active" onclick="switchTab('coords')" id="coordsTab">Track Coords</button>
-                        <button class="tab-btn" onclick="switchTab('workflow')" id="workflowTab">Workflow JSON</button>
+                        <button class="tab-btn active" onclick="switchTab('workflow')" id="workflowTab">Workflow JSON</button>
+                        <button class="tab-btn" onclick="switchTab('coords')" id="coordsTab">Track Coords</button>
+                    </div>
+                    
+                    <!-- Workflow JSON Tab -->
+                    <div class="tab-content active" id="workflowContent">
+                        <div class="button-group">
+                            <button class="btn-success" onclick="exportWorkflowJson()">Export</button>
+                            <button class="btn-secondary" onclick="downloadExportData()">Download</button>
+                        </div>
+                        <div class="button-group" style="margin-top: 10px;">
+                            <input type="file" id="importWorkflowFile" accept=".json" style="display: none;" onchange="handleFileImport(event)">
+                            <button class="btn-primary" onclick="document.getElementById('importWorkflowFile').click()">Import File</button>
+                            <button class="btn-secondary" onclick="importFromTextarea()">Import Text</button>
+                            <button class="btn-danger" onclick="clearImportData()">Clear All</button>
+                        </div>
                     </div>
                     
                     <!-- Track Coords Tab -->
-                    <div class="tab-content active" id="coordsContent">
+                    <div class="tab-content" id="coordsContent">
                         <div class="button-group">
                             <button class="btn-primary" onclick="exportTrackData()">Export</button>
                             <button class="btn-secondary" onclick="downloadExportData()">Download</button>
@@ -631,20 +647,6 @@
                         <div class="button-group" style="margin-top: 10px;">
                             <input type="file" id="importFile" accept=".json" style="display: none;" onchange="handleFileImport(event)">
                             <button class="btn-primary" onclick="document.getElementById('importFile').click()">Import File</button>
-                            <button class="btn-secondary" onclick="importFromTextarea()">Import Text</button>
-                            <button class="btn-danger" onclick="clearImportData()">Clear All</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Workflow JSON Tab -->
-                    <div class="tab-content" id="workflowContent">
-                        <div class="button-group">
-                            <button class="btn-success" onclick="exportWorkflowJson()">Export</button>
-                            <button class="btn-secondary" onclick="downloadExportData()">Download</button>
-                        </div>
-                        <div class="button-group" style="margin-top: 10px;">
-                            <input type="file" id="importWorkflowFile" accept=".json" style="display: none;" onchange="handleFileImport(event)">
-                            <button class="btn-primary" onclick="document.getElementById('importWorkflowFile').click()">Import File</button>
                             <button class="btn-secondary" onclick="importFromTextarea()">Import Text</button>
                             <button class="btn-danger" onclick="clearImportData()">Clear All</button>
                         </div>
@@ -672,6 +674,11 @@
         let imageFitMode = 'contain';
         let imageScale = 1;
         let imageOffset = { x: 0, y: 0 };
+        
+        // Undo/Redo system
+        let undoStack = [];
+        let redoStack = [];
+        const maxUndoSteps = 50;
         
         // Track colors
         const trackColors = [
@@ -1021,6 +1028,9 @@
             const y = (e.clientY - rect.top) / rect.height;
             const pixelX = x * canvas.width;
             const pixelY = y * canvas.height;
+            
+            // Save state before starting drag operation
+            saveState('drag_start');
             
             // First, check if clicking on a track label
             for (let label of trackLabels) {
@@ -1664,6 +1674,102 @@
             document.getElementById(tabName + 'Content').classList.add('active');
         }
         
+        // Undo/Redo system
+        function saveState(action = 'user_action') {
+            const state = {
+                allTracks: JSON.parse(JSON.stringify(allTracks)), // Deep copy
+                activeTrackId: activeTrackId,
+                trackIdCounter: trackIdCounter,
+                action: action,
+                timestamp: Date.now()
+            };
+            
+            undoStack.push(state);
+            
+            // Limit stack size
+            if (undoStack.length > maxUndoSteps) {
+                undoStack.shift();
+            }
+            
+            // Clear redo stack when new action is performed
+            redoStack = [];
+            
+            updateUndoRedoButtons();
+        }
+        
+        function undo() {
+            if (undoStack.length === 0) return;
+            
+            // Save current state to redo stack
+            const currentState = {
+                allTracks: JSON.parse(JSON.stringify(allTracks)),
+                activeTrackId: activeTrackId,
+                trackIdCounter: trackIdCounter,
+                action: 'undo_point',
+                timestamp: Date.now()
+            };
+            redoStack.push(currentState);
+            
+            // Restore previous state
+            const previousState = undoStack.pop();
+            restoreState(previousState);
+            
+            updateUndoRedoButtons();
+        }
+        
+        function redo() {
+            if (redoStack.length === 0) return;
+            
+            // Save current state to undo stack
+            const currentState = {
+                allTracks: JSON.parse(JSON.stringify(allTracks)),
+                activeTrackId: activeTrackId,
+                trackIdCounter: trackIdCounter,
+                action: 'redo_point',
+                timestamp: Date.now()
+            };
+            undoStack.push(currentState);
+            
+            // Restore next state
+            const nextState = redoStack.pop();
+            restoreState(nextState);
+            
+            updateUndoRedoButtons();
+        }
+        
+        function restoreState(state) {
+            allTracks = JSON.parse(JSON.stringify(state.allTracks)); // Deep copy
+            activeTrackId = state.activeTrackId;
+            trackIdCounter = state.trackIdCounter;
+            
+            updateTrackList();
+            loadActiveTrackParams();
+            updatePreview();
+        }
+        
+        function updateUndoRedoButtons() {
+            const undoBtn = document.getElementById('undoBtn');
+            const redoBtn = document.getElementById('redoBtn');
+            
+            undoBtn.disabled = undoStack.length === 0;
+            redoBtn.disabled = redoStack.length === 0;
+            
+            // Update button titles with action info
+            if (undoStack.length > 0) {
+                const lastAction = undoStack[undoStack.length - 1];
+                undoBtn.title = `Undo: ${lastAction.action}`;
+            } else {
+                undoBtn.title = 'Nothing to undo';
+            }
+            
+            if (redoStack.length > 0) {
+                const nextAction = redoStack[redoStack.length - 1];
+                redoBtn.title = `Redo: ${nextAction.action}`;
+            } else {
+                redoBtn.title = 'Nothing to redo';
+            }
+        }
+        
         function testTrackCoordsFormat() {
             console.clear();
             console.log('=== Track Coords Debug ===');
@@ -1798,6 +1904,7 @@
         
         function clearImportData() {
             if (confirm('Are you sure you want to clear all tracks and start fresh?')) {
+                saveState('clear_all');
                 allTracks = [];
                 trackIdCounter = 0;
                 activeTrackId = 0;
@@ -1810,6 +1917,7 @@
         // Import track coordinates and reverse-engineer track parameters
         function importTrackCoords(trackCoordsData) {
             try {
+                saveState('import_coords');
                 allTracks = [];
                 trackIdCounter = 0;
                 
@@ -2014,6 +2122,7 @@
         // Import ComfyUI workflow and extract track parameters
         function importWorkflowJson(workflowData) {
             try {
+                saveState('import_workflow');
                 allTracks = [];
                 trackIdCounter = 0;
                 
@@ -2358,6 +2467,7 @@
         }
         
         function addNewTrack() {
+            saveState('add_track');
             const newTrack = createDefaultTrack(trackIdCounter++);
             allTracks.push(newTrack);
             setActiveTrack(newTrack.id);
@@ -2368,6 +2478,7 @@
         function deleteActiveTrack() {
             if (allTracks.length <= 1) return; // Keep at least one track
             
+            saveState('delete_track');
             allTracks = allTracks.filter(track => track.id !== activeTrackId);
             
             // Set new active track
@@ -2481,6 +2592,7 @@
         // Initialize the application
         initializeEventListeners();
         initializeTracks();
+        updateUndoRedoButtons();
         updatePreview();
     </script>
 </body>
