@@ -943,6 +943,16 @@
                 dragTarget = 'mid';
                 dragTrackId = activeTrack.id;
                 isDragging = true;
+            } else if (activeTrack.spreadControl1 &&
+                       Math.abs(x - activeTrack.spreadControl1.x) < threshold && Math.abs(y - activeTrack.spreadControl1.y) < threshold) {
+                dragTarget = 'spread';
+                dragTrackId = activeTrack.id;
+                isDragging = true;
+            } else if (activeTrack.spreadControl2 &&
+                       Math.abs(x - activeTrack.spreadControl2.x) < threshold && Math.abs(y - activeTrack.spreadControl2.y) < threshold) {
+                dragTarget = 'spread';
+                dragTrackId = activeTrack.id;
+                isDragging = true;
             } else {
                 // Check if clicking on any track to select it
                 let clickedTrackId = findTrackAtPosition(x, y);
@@ -990,6 +1000,30 @@
                 document.getElementById('midY').value = y;
                 document.getElementById('midXValue').textContent = x.toFixed(2);
                 document.getElementById('midYValue').textContent = y.toFixed(2);
+            } else if (dragTarget === 'spread') {
+                // Calculate new track spread based on mouse position
+                if (draggedTrack.spreadCenter) {
+                    const centerX = draggedTrack.spreadCenter.x;
+                    const centerY = draggedTrack.spreadCenter.y;
+                    
+                    // Calculate distance from center to mouse position
+                    const dx = x - centerX;
+                    const dy = y - centerY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Convert distance back to track spread (normalized value)
+                    // The spread is stored as normalized value, distance is in normalized coordinates
+                    // We need to convert back considering the average of canvas dimensions
+                    const pixelDistance = distance * Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height) / Math.sqrt(2);
+                    const newSpread = pixelDistance / ((canvas.width + canvas.height) / 2);
+                    
+                    // Clamp the spread to reasonable bounds
+                    draggedTrack.trackSpread = Math.max(0.001, Math.min(1.0, newSpread));
+                    
+                    // Update the UI slider
+                    document.getElementById('trackSpread').value = draggedTrack.trackSpread;
+                    document.getElementById('trackSpreadValue').textContent = draggedTrack.trackSpread.toFixed(3);
+                }
             }
             
             updatePreview();
@@ -1177,14 +1211,7 @@
                         drawArrowsOnPath(tracks, trackIdx, color);
                     }
                     
-                    // Draw track points
-                    for (let frameIdx = 0; frameIdx < tracks.length; frameIdx += Math.max(1, Math.floor(tracks.length / 20))) {
-                        const point = tracks[frameIdx][trackIdx];
-                        ctx.fillStyle = color;
-                        ctx.beginPath();
-                        ctx.arc(point.x, point.y, trackObj.active ? 4 : 2, 0, 2 * Math.PI);
-                        ctx.fill();
-                    }
+                    // Track points removed - only arrows are shown
                 }
                 
                 // Draw track number label at track center
@@ -1241,10 +1268,100 @@
                     ctx.stroke();
                     ctx.setLineDash([]);
                 }
+                
+                // Draw track spread control points
+                drawTrackSpreadControls(activeTrack);
             }
         }
         
         let trackLabels = []; // Store label positions for click detection
+        
+        // Draw track spread control points
+        function drawTrackSpreadControls(track) {
+            if (!track.generatedTracks || track.generatedTracks.length === 0) return;
+            
+            // Calculate middle point of the track path
+            const midFrameIndex = Math.floor(track.numFrames / 2);
+            const tracks = track.generatedTracks;
+            
+            // Get the center track position
+            const centerTrackIndex = Math.floor(track.numTracks / 2);
+            
+            if (midFrameIndex >= tracks.length || centerTrackIndex >= tracks[midFrameIndex].length) return;
+            
+            const centerPoint = tracks[midFrameIndex][centerTrackIndex];
+            
+            // Calculate direction of the track at this point
+            let directionX, directionY;
+            if (track.bezier) {
+                // For bezier curves, calculate tangent at mid point
+                const t = 0.5;
+                const oneMinusT = 1 - t;
+                directionX = 2 * oneMinusT * (track.midPoint.x - track.startPoint.x) + 2 * t * (track.endPoint.x - track.midPoint.x);
+                directionY = 2 * oneMinusT * (track.midPoint.y - track.startPoint.y) + 2 * t * (track.endPoint.y - track.midPoint.y);
+            } else {
+                // For linear tracks, direction is constant
+                directionX = track.endPoint.x - track.startPoint.x;
+                directionY = track.endPoint.y - track.startPoint.y;
+            }
+            
+            // Normalize direction
+            const length = Math.sqrt(directionX * directionX + directionY * directionY);
+            if (length === 0) return;
+            
+            directionX /= length;
+            directionY /= length;
+            
+            // Calculate perpendicular direction (rotate 90 degrees)
+            const perpX = -directionY;
+            const perpY = directionX;
+            
+            // Calculate spread distance in pixels
+            const spreadDistance = track.trackSpread * (canvas.width + canvas.height) / 2;
+            
+            // Calculate spread control points
+            const spreadPoint1X = centerPoint.x + perpX * spreadDistance;
+            const spreadPoint1Y = centerPoint.y + perpY * spreadDistance;
+            const spreadPoint2X = centerPoint.x - perpX * spreadDistance;
+            const spreadPoint2Y = centerPoint.y - perpY * spreadDistance;
+            
+            // Draw spread indicator lines
+            ctx.strokeStyle = '#9b59b6';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(spreadPoint1X, spreadPoint1Y);
+            ctx.lineTo(spreadPoint2X, spreadPoint2Y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Draw spread control points
+            ctx.fillStyle = '#9b59b6';
+            
+            // First spread control point
+            ctx.beginPath();
+            ctx.arc(spreadPoint1X, spreadPoint1Y, 6, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(spreadPoint1X, spreadPoint1Y, 3, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Second spread control point  
+            ctx.fillStyle = '#9b59b6';
+            ctx.beginPath();
+            ctx.arc(spreadPoint2X, spreadPoint2Y, 6, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(spreadPoint2X, spreadPoint2Y, 3, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Store spread control points for interaction
+            track.spreadControl1 = { x: spreadPoint1X / canvas.width, y: spreadPoint1Y / canvas.height };
+            track.spreadControl2 = { x: spreadPoint2X / canvas.width, y: spreadPoint2Y / canvas.height };
+            track.spreadCenter = { x: centerPoint.x / canvas.width, y: centerPoint.y / canvas.height };
+        }
         
         function drawTrackLabel(x, y, trackNumber, color, isActive, trackId) {
             ctx.save();
