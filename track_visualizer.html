@@ -539,8 +539,12 @@
                 
                 <div class="control-group export-section">
                     <h3>Export Settings</h3>
-                    <button class="btn-success" onclick="exportTrackData()">Export Track Data</button>
-                    <textarea id="exportOutput" placeholder="Exported track parameters will appear here..." readonly></textarea>
+                    <div class="button-group">
+                        <button class="btn-primary" onclick="exportTrackData()">Export Track Coords</button>
+                        <button class="btn-success" onclick="exportWorkflowJson()">Export Workflow JSON</button>
+                        <button class="btn-secondary" onclick="downloadExportData()">Download File</button>
+                    </div>
+                    <textarea id="exportOutput" placeholder="Exported data will appear here..." readonly></textarea>
                 </div>
             </div>
         </div>
@@ -1085,6 +1089,29 @@
         function updatePreview() {
             generateAllTracks();
             drawTracks();
+            updateExportData();
+        }
+        
+        // Update export data in real-time
+        function updateExportData() {
+            const exportOutput = document.getElementById('exportOutput');
+            if (exportOutput.value !== '') {
+                // Check which export mode is currently being used
+                const currentValue = exportOutput.value;
+                try {
+                    const parsed = JSON.parse(currentValue);
+                    if (parsed && typeof parsed === 'object' && 'nodes' in parsed) {
+                        // Currently showing workflow JSON
+                        exportWorkflowJson();
+                    } else {
+                        // Currently showing track_coords
+                        exportTrackData();
+                    }
+                } catch (e) {
+                    // If it's not JSON, assume it's track_coords format
+                    exportTrackData();
+                }
+            }
         }
         
         function drawTracks() {
@@ -1348,27 +1375,284 @@
         }
         
         function exportTrackData() {
-            if (tracks.length === 0) {
-                updatePreview();
+            const trackCoords = generateTrackCoords();
+            document.getElementById('exportOutput').value = trackCoords;
+        }
+        
+        function downloadExportData() {
+            const exportOutput = document.getElementById('exportOutput');
+            const data = exportOutput.value;
+            
+            if (!data) {
+                alert('No data to download! Please export something first.');
+                return;
             }
             
-            const exportData = {
-                width: canvas.width,
-                height: canvas.height,
-                start_x: parseFloat(document.getElementById('startX').value),
-                start_y: parseFloat(document.getElementById('startY').value),
-                end_x: parseFloat(document.getElementById('endX').value),
-                end_y: parseFloat(document.getElementById('endY').value),
-                mid_x: parseFloat(document.getElementById('midX').value),
-                mid_y: parseFloat(document.getElementById('midY').value),
-                num_frames: parseInt(document.getElementById('numFrames').value),
-                num_tracks: parseInt(document.getElementById('numTracks').value),
-                track_spread: parseFloat(document.getElementById('trackSpread').value),
-                bezier: document.getElementById('bezierEnable').checked,
-                interpolation: document.getElementById('interpolation').value
+            let filename = 'track_data';
+            let contentType = 'application/json';
+            
+            // Determine file type and name based on content
+            try {
+                const parsed = JSON.parse(data);
+                if (parsed && typeof parsed === 'object' && 'nodes' in parsed) {
+                    filename = 'workflow.json';
+                } else {
+                    filename = 'track_coords.json';
+                }
+            } catch (e) {
+                filename = 'track_coords.json';
+            }
+            
+            // Create and download file
+            const blob = new Blob([data], { type: contentType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        function generateTrackNode(track, nodeId, posX, posY) {
+            return {
+                id: nodeId,
+                type: "GenerateTracks",
+                pos: [posX, posY],
+                size: [270, 366],
+                flags: {},
+                order: nodeId - 1,
+                mode: 0,
+                inputs: [
+                    {
+                        name: "track_mask",
+                        shape: 7,
+                        type: "MASK",
+                        link: null
+                    }
+                ],
+                outputs: [
+                    {
+                        name: "TRACKS",
+                        type: "TRACKS",
+                        links: null
+                    },
+                    {
+                        name: "track_length",
+                        type: "INT",
+                        links: null
+                    }
+                ],
+                properties: {
+                    "Node name for S&R": "GenerateTracks"
+                },
+                widgets_values: [
+                    canvas.width,           // width
+                    canvas.height,          // height
+                    track.startPoint.x,     // start_x
+                    track.startPoint.y,     // start_y
+                    track.endPoint.x,       // end_x
+                    track.endPoint.y,       // end_y
+                    track.numFrames,        // num_frames
+                    track.numTracks,        // num_tracks
+                    track.trackSpread,      // track_spread
+                    track.bezier,           // bezier
+                    track.midPoint.x,       // mid_x
+                    track.midPoint.y,       // mid_y
+                    track.interpolation     // interpolation
+                ]
+            };
+        }
+        
+        function generateConcatNode(nodeId, posX, posY, inputIds) {
+            const node = {
+                id: nodeId,
+                type: "WanMoveConcatTrack",
+                pos: [posX, posY],
+                size: [200, 100],
+                flags: {},
+                order: nodeId - 1,
+                mode: 0,
+                inputs: [
+                    {
+                        name: "tracks_1",
+                        type: "TRACKS",
+                        link: inputIds.length > 0 ? (nodeId - 1) * 2 : null
+                    },
+                    {
+                        name: "tracks_2",
+                        type: "TRACKS", 
+                        link: inputIds.length > 1 ? (nodeId - 2) * 2 : null
+                    }
+                ],
+                outputs: [
+                    {
+                        name: "TRACKS",
+                        type: "TRACKS",
+                        links: null
+                    }
+                ],
+                properties: {
+                    "Node name for S&R": "WanMoveConcatTrack"
+                },
+                widgets_values: []
             };
             
-            document.getElementById('exportOutput').value = JSON.stringify(exportData, null, 2);
+            return node;
+        }
+        
+        function exportWorkflowJson() {
+            generateAllTracks();
+            
+            const visibleTracks = allTracks.filter(track => track.visible);
+            if (visibleTracks.length === 0) {
+                alert('No visible tracks to export!');
+                return;
+            }
+            
+            const nodes = [];
+            const links = [];
+            let nodeId = 1;
+            let linkId = 1;
+            
+            // Generate GenerateTracks nodes
+            const trackNodeIds = [];
+            visibleTracks.forEach((track, index) => {
+                const posX = 100 + (index % 3) * 300;  // 3 columns
+                const posY = 100 + Math.floor(index / 3) * 400;  // Row spacing
+                const node = generateTrackNode(track, nodeId, posX, posY);
+                nodes.push(node);
+                trackNodeIds.push(nodeId);
+                nodeId++;
+            });
+            
+            // Generate WanMoveConcatTrack nodes if multiple tracks
+            if (visibleTracks.length > 1) {
+                let currentTrackIds = [...trackNodeIds];
+                let concatY = 600;
+                
+                while (currentTrackIds.length > 1) {
+                    const newConcatIds = [];
+                    
+                    for (let i = 0; i < currentTrackIds.length; i += 2) {
+                        if (i + 1 < currentTrackIds.length) {
+                            // Create concat node for pair
+                            const concatNode = generateConcatNode(nodeId, 500, concatY, [currentTrackIds[i], currentTrackIds[i + 1]]);
+                            
+                            // Add links
+                            const trackId1 = currentTrackIds[i];
+                            const trackId2 = currentTrackIds[i + 1];
+                            
+                            links.push([
+                                linkId++,
+                                trackId1,
+                                0,
+                                nodeId,
+                                0,
+                                "TRACKS"
+                            ]);
+                            
+                            links.push([
+                                linkId++,
+                                trackId2,
+                                0,
+                                nodeId,
+                                1,
+                                "TRACKS"
+                            ]);
+                            
+                            // Update concat node links
+                            concatNode.inputs[0].link = linkId - 2;
+                            concatNode.inputs[1].link = linkId - 1;
+                            
+                            nodes.push(concatNode);
+                            newConcatIds.push(nodeId);
+                            nodeId++;
+                        } else {
+                            // Odd track, carry forward
+                            newConcatIds.push(currentTrackIds[i]);
+                        }
+                    }
+                    
+                    currentTrackIds = newConcatIds;
+                    concatY += 150;
+                }
+            }
+            
+            // Update node outputs with links
+            nodes.forEach(node => {
+                const nodeLinks = links.filter(link => link[1] === node.id);
+                if (nodeLinks.length > 0) {
+                    node.outputs[0].links = nodeLinks.map(link => link[0]);
+                }
+            });
+            
+            const workflow = {
+                id: generateUUID(),
+                revision: 0,
+                last_node_id: nodeId - 1,
+                last_link_id: linkId - 1,
+                nodes: nodes,
+                links: links,
+                groups: [],
+                config: {},
+                extra: {
+                    workflowRendererVersion: "LG",
+                    ds: {
+                        scale: 1.0,
+                        offset: [0, 0]
+                    }
+                },
+                version: 0.4
+            };
+            
+            document.getElementById('exportOutput').value = JSON.stringify(workflow, null, 2);
+        }
+        
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+        
+        // Generate track_coords format for WanMoveTracksFromCoords node
+        function generateTrackCoords() {
+            generateAllTracks();
+            
+            const visibleTracks = allTracks.filter(track => track.visible);
+            if (visibleTracks.length === 0) {
+                return "[]";
+            }
+            
+            const trackCoords = [];
+            
+            visibleTracks.forEach(track => {
+                // For each track, we need to create multiple sub-tracks based on numTracks
+                for (let trackIndex = 0; trackIndex < track.numTracks; trackIndex++) {
+                    const trackFrames = [];
+                    for (let frameIndex = 0; frameIndex < track.numFrames; frameIndex++) {
+                        // Get the coordinate for this specific track and frame
+                        const coordIndex = frameIndex * track.numTracks + trackIndex;
+                        if (coordIndex < track.generatedTracks.length) {
+                            const pixelX = track.generatedTracks[coordIndex][0];
+                            const pixelY = track.generatedTracks[coordIndex][1];
+                            
+                            trackFrames.push({
+                                x: pixelX,
+                                y: pixelY
+                            });
+                        }
+                    }
+                    if (trackFrames.length > 0) {
+                        trackCoords.push(trackFrames);
+                    }
+                }
+            });
+            
+            return JSON.stringify(trackCoords);
         }
         
         // Track management functions
