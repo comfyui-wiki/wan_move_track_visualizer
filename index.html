@@ -170,6 +170,65 @@
             background: #7f8c8d;
         }
         
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 2px;
+        }
+        
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        /* Tab Styles */
+        .tab-nav {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 15px;
+        }
+        
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .tab-btn:hover {
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .tab-btn.active {
+            color: #2c3e50;
+            border-bottom-color: #3498db;
+            background: #f8f9fa;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
         .btn-success {
             background: #27ae60;
             color: white;
@@ -554,13 +613,44 @@
                 </div>
                 
                 <div class="control-group export-section">
-                    <h3>Export Settings</h3>
-                    <div class="button-group">
-                        <button class="btn-primary" onclick="exportTrackData()">Export Track Coords</button>
-                        <button class="btn-success" onclick="exportWorkflowJson()">Export Workflow JSON</button>
-                        <button class="btn-secondary" onclick="downloadExportData()">Download File</button>
+                    <h3>Import/Export</h3>
+                    
+                    <!-- Tab Navigation -->
+                    <div class="tab-nav">
+                        <button class="tab-btn active" onclick="switchTab('coords')" id="coordsTab">Track Coords</button>
+                        <button class="tab-btn" onclick="switchTab('workflow')" id="workflowTab">Workflow JSON</button>
                     </div>
-                    <textarea id="exportOutput" placeholder="Exported data will appear here..." readonly></textarea>
+                    
+                    <!-- Track Coords Tab -->
+                    <div class="tab-content active" id="coordsContent">
+                        <div class="button-group">
+                            <button class="btn-primary" onclick="exportTrackData()">Export</button>
+                            <button class="btn-secondary" onclick="downloadExportData()">Download</button>
+                            <button class="btn-secondary" onclick="testTrackCoordsFormat()" style="font-size: 12px;">🔍 Debug</button>
+                        </div>
+                        <div class="button-group" style="margin-top: 10px;">
+                            <input type="file" id="importFile" accept=".json" style="display: none;" onchange="handleFileImport(event)">
+                            <button class="btn-primary" onclick="document.getElementById('importFile').click()">Import File</button>
+                            <button class="btn-secondary" onclick="importFromTextarea()">Import Text</button>
+                            <button class="btn-danger" onclick="clearImportData()">Clear All</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Workflow JSON Tab -->
+                    <div class="tab-content" id="workflowContent">
+                        <div class="button-group">
+                            <button class="btn-success" onclick="exportWorkflowJson()">Export</button>
+                            <button class="btn-secondary" onclick="downloadExportData()">Download</button>
+                        </div>
+                        <div class="button-group" style="margin-top: 10px;">
+                            <input type="file" id="importWorkflowFile" accept=".json" style="display: none;" onchange="handleFileImport(event)">
+                            <button class="btn-primary" onclick="document.getElementById('importWorkflowFile').click()">Import File</button>
+                            <button class="btn-secondary" onclick="importFromTextarea()">Import Text</button>
+                            <button class="btn-danger" onclick="clearImportData()">Clear All</button>
+                        </div>
+                    </div>
+                    
+                    <textarea id="exportOutput" placeholder="Data will appear here... You can also paste JSON to import." rows="8"></textarea>
                 </div>
             </div>
         </div>
@@ -1509,7 +1599,117 @@
         
         function exportTrackData() {
             const trackCoords = generateTrackCoords();
-            document.getElementById('exportOutput').value = trackCoords;
+            
+            // Validate the generated data
+            try {
+                const parsed = JSON.parse(trackCoords);
+                if (validateTrackCoordsFormat(parsed)) {
+                    document.getElementById('exportOutput').value = trackCoords;
+                    console.log('Export successful:', parsed.length, 'tracks exported');
+                } else {
+                    alert('Generated data format is invalid. Please check the console for details.');
+                }
+            } catch (e) {
+                alert('Error generating track coordinates: ' + e.message);
+            }
+        }
+        
+        function validateTrackCoordsFormat(data) {
+            if (!Array.isArray(data)) {
+                console.error('Track coords data must be an array');
+                return false;
+            }
+            
+            if (data.length === 0) {
+                console.warn('No tracks to export');
+                return true;
+            }
+            
+            const expectedFrameCount = data[0].length;
+            
+            for (let i = 0; i < data.length; i++) {
+                const track = data[i];
+                
+                if (!Array.isArray(track)) {
+                    console.error(`Track ${i} is not an array`);
+                    return false;
+                }
+                
+                if (track.length !== expectedFrameCount) {
+                    console.error(`Track ${i} has ${track.length} frames, expected ${expectedFrameCount}`);
+                    return false;
+                }
+                
+                for (let j = 0; j < track.length; j++) {
+                    const frame = track[j];
+                    if (!frame || typeof frame.x !== 'number' || typeof frame.y !== 'number') {
+                        console.error(`Track ${i}, frame ${j} has invalid format:`, frame);
+                        return false;
+                    }
+                }
+            }
+            
+            console.log(`Validation passed: ${data.length} tracks, each with ${expectedFrameCount} frames`);
+            return true;
+        }
+        
+        // Tab switching functionality
+        function switchTab(tabName) {
+            // Remove active class from all tabs and content
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Add active class to selected tab and content
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            document.getElementById(tabName + 'Content').classList.add('active');
+        }
+        
+        function testTrackCoordsFormat() {
+            console.clear();
+            console.log('=== Track Coords Debug ===');
+            
+            if (allTracks.length === 0) {
+                alert('No tracks to debug. Please create some tracks first.');
+                return;
+            }
+            
+            generateAllTracks();
+            const visibleTracks = allTracks.filter(track => track.visible);
+            
+            console.log('Visible tracks:', visibleTracks.length);
+            
+            visibleTracks.forEach((track, index) => {
+                console.group(`Track ${index + 1}: ${track.name}`);
+                console.log('Config:', {
+                    numFrames: track.numFrames,
+                    numTracks: track.numTracks,
+                    generatedLength: track.generatedTracks?.length || 0
+                });
+                
+                if (track.generatedTracks && track.generatedTracks.length > 0) {
+                    console.log('First frame sample:', track.generatedTracks[0]);
+                    console.log('Frame data lengths:', track.generatedTracks.map(frame => frame?.length || 0));
+                } else {
+                    console.error('No generated tracks data!');
+                }
+                console.groupEnd();
+            });
+            
+            // Test export
+            try {
+                const trackCoords = generateTrackCoords();
+                const parsed = JSON.parse(trackCoords);
+                console.log('Generated data structure:');
+                console.log('Total tracks:', parsed.length);
+                if (parsed.length > 0) {
+                    console.log('Frames per track:', parsed[0].length);
+                    console.log('Sample track[0][0]:', parsed[0][0]);
+                }
+            } catch (error) {
+                console.error('Export failed:', error);
+            }
+            
+            alert('Debug complete. Check browser console (F12) for detailed information.');
         }
         
         function downloadExportData() {
@@ -1546,6 +1746,319 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        }
+        
+        // Import functions
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const jsonData = e.target.result;
+                    importJsonData(jsonData);
+                } catch (error) {
+                    alert('Error reading file: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        function importFromTextarea() {
+            const exportOutput = document.getElementById('exportOutput');
+            const data = exportOutput.value.trim();
+            
+            if (!data) {
+                alert('Please paste JSON data in the text area first.');
+                return;
+            }
+            
+            importJsonData(data);
+        }
+        
+        function importJsonData(jsonString) {
+            try {
+                const data = JSON.parse(jsonString);
+                
+                // Detect data type and import accordingly
+                if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0])) {
+                    // Track coords format
+                    importTrackCoords(data);
+                } else if (data.nodes && Array.isArray(data.nodes)) {
+                    // Workflow JSON format
+                    importWorkflowJson(data);
+                } else {
+                    alert('Unrecognized JSON format. Expected track_coords array or ComfyUI workflow.');
+                }
+            } catch (error) {
+                alert('Invalid JSON data: ' + error.message);
+            }
+        }
+        
+        function clearImportData() {
+            if (confirm('Are you sure you want to clear all tracks and start fresh?')) {
+                allTracks = [];
+                trackIdCounter = 0;
+                activeTrackId = 0;
+                document.getElementById('exportOutput').value = '';
+                updateTrackList();
+                updatePreview();
+            }
+        }
+        
+        // Import track coordinates and reverse-engineer track parameters
+        function importTrackCoords(trackCoordsData) {
+            try {
+                allTracks = [];
+                trackIdCounter = 0;
+                
+                if (!Array.isArray(trackCoordsData) || trackCoordsData.length === 0) {
+                    alert('No track data found in the imported file.');
+                    return;
+                }
+                
+                // Group tracks by similar motion patterns (assume tracks from same trajectory are sequential)
+                const trackGroups = groupTracksByPattern(trackCoordsData);
+                
+                trackGroups.forEach((group, groupIndex) => {
+                    const trackObj = reverseEngineerTrack(group, trackIdCounter++);
+                    allTracks.push(trackObj);
+                });
+                
+                // Set first track as active
+                activeTrackId = allTracks.length > 0 ? allTracks[0].id : 0;
+                
+                updateTrackList();
+                updatePreview();
+                
+                alert(`Successfully imported ${trackGroups.length} track groups with ${trackCoordsData.length} total tracks.`);
+                
+            } catch (error) {
+                alert('Error importing track coordinates: ' + error.message);
+            }
+        }
+        
+        // Group tracks that appear to be from the same trajectory
+        function groupTracksByPattern(trackCoordsData) {
+            if (trackCoordsData.length === 0) return [];
+            
+            const groups = [];
+            const frameCount = trackCoordsData[0].length;
+            
+            // For now, group tracks that have similar start/end patterns
+            // This is a heuristic approach - tracks with similar motion vectors likely belong together
+            let currentGroup = [trackCoordsData[0]];
+            let groupStartPoint = trackCoordsData[0][0];
+            let groupEndPoint = trackCoordsData[0][frameCount - 1];
+            
+            for (let i = 1; i < trackCoordsData.length; i++) {
+                const track = trackCoordsData[i];
+                const startPoint = track[0];
+                const endPoint = track[frameCount - 1];
+                
+                // Calculate if this track is close enough to be part of current group
+                const startDistance = Math.sqrt(Math.pow(startPoint.x - groupStartPoint.x, 2) + Math.pow(startPoint.y - groupStartPoint.y, 2));
+                const endDistance = Math.sqrt(Math.pow(endPoint.x - groupEndPoint.x, 2) + Math.pow(endPoint.y - groupEndPoint.y, 2));
+                
+                // If tracks are close (within reasonable spread distance), group them
+                const spreadThreshold = Math.min(canvas.width, canvas.height) * 0.1; // 10% of canvas size
+                
+                if (startDistance < spreadThreshold && endDistance < spreadThreshold) {
+                    currentGroup.push(track);
+                } else {
+                    // Start new group
+                    groups.push(currentGroup);
+                    currentGroup = [track];
+                    groupStartPoint = startPoint;
+                    groupEndPoint = endPoint;
+                }
+            }
+            
+            // Add the last group
+            if (currentGroup.length > 0) {
+                groups.push(currentGroup);
+            }
+            
+            return groups;
+        }
+        
+        // Reverse engineer track parameters from coordinate data
+        function reverseEngineerTrack(trackGroup, trackId) {
+            const firstTrack = trackGroup[0];
+            const frameCount = firstTrack.length;
+            const trackCount = trackGroup.length;
+            
+            // Find center track (middle track in the group)
+            const centerTrackIndex = Math.floor(trackCount / 2);
+            const centerTrack = trackGroup[centerTrackIndex];
+            
+            // Extract start and end points (normalized coordinates)
+            const startPoint = {
+                x: centerTrack[0].x / canvas.width,
+                y: centerTrack[0].y / canvas.height
+            };
+            
+            const endPoint = {
+                x: centerTrack[frameCount - 1].x / canvas.width,
+                y: centerTrack[frameCount - 1].y / canvas.height
+            };
+            
+            // Estimate mid point for bezier (use middle frame of center track)
+            const midFrameIndex = Math.floor(frameCount / 2);
+            const midPoint = {
+                x: centerTrack[midFrameIndex].x / canvas.width,
+                y: centerTrack[midFrameIndex].y / canvas.height
+            };
+            
+            // Check if path appears to be bezier (non-linear)
+            const isBezier = detectBezierCurve(centerTrack);
+            
+            // Estimate track spread based on distance between parallel tracks
+            let trackSpread = 0;
+            if (trackCount > 1) {
+                // Calculate average distance between adjacent tracks
+                let totalSpread = 0;
+                let spreadSamples = 0;
+                
+                for (let frameIndex = 0; frameIndex < frameCount; frameIndex += Math.floor(frameCount / 5)) {
+                    for (let i = 0; i < trackGroup.length - 1; i++) {
+                        const dist = Math.sqrt(
+                            Math.pow(trackGroup[i + 1][frameIndex].x - trackGroup[i][frameIndex].x, 2) +
+                            Math.pow(trackGroup[i + 1][frameIndex].y - trackGroup[i][frameIndex].y, 2)
+                        );
+                        totalSpread += dist;
+                        spreadSamples++;
+                    }
+                }
+                
+                if (spreadSamples > 0) {
+                    const avgSpread = totalSpread / spreadSamples;
+                    trackSpread = avgSpread / ((canvas.width + canvas.height) / 2);
+                }
+            }
+            
+            // Create track object
+            const trackObj = {
+                id: trackId,
+                name: `Imported Track ${trackId + 1}`,
+                color: trackColors[trackId % trackColors.length],
+                visible: true,
+                active: trackId === 0,
+                startPoint: startPoint,
+                endPoint: endPoint,
+                midPoint: midPoint,
+                bezier: isBezier,
+                interpolation: 'linear', // Default to linear
+                numFrames: frameCount,
+                numTracks: trackCount,
+                trackSpread: Math.max(0.001, Math.min(1.0, trackSpread)),
+                generatedTracks: []
+            };
+            
+            // Pre-populate generated tracks with imported data
+            trackObj.generatedTracks = convertCoordsToTrackFormat(trackGroup);
+            
+            return trackObj;
+        }
+        
+        // Detect if a track follows a bezier curve pattern
+        function detectBezierCurve(track) {
+            if (track.length < 5) return false;
+            
+            const start = track[0];
+            const end = track[track.length - 1];
+            
+            // Check if middle points deviate significantly from linear path
+            let maxDeviation = 0;
+            
+            for (let i = 1; i < track.length - 1; i++) {
+                const t = i / (track.length - 1);
+                // Linear interpolation point
+                const linearX = start.x + (end.x - start.x) * t;
+                const linearY = start.y + (end.y - start.y) * t;
+                
+                // Actual point
+                const actualX = track[i].x;
+                const actualY = track[i].y;
+                
+                // Calculate deviation
+                const deviation = Math.sqrt(Math.pow(actualX - linearX, 2) + Math.pow(actualY - linearY, 2));
+                maxDeviation = Math.max(maxDeviation, deviation);
+            }
+            
+            // If deviation is significant compared to track length, it's likely bezier
+            const trackLength = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
+            return maxDeviation > trackLength * 0.1; // 10% deviation threshold
+        }
+        
+        // Convert coordinate format back to our internal track format
+        function convertCoordsToTrackFormat(trackGroup) {
+            const frameCount = trackGroup[0].length;
+            const tracks = [];
+            
+            for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
+                const frameData = [];
+                for (let trackIndex = 0; trackIndex < trackGroup.length; trackIndex++) {
+                    frameData.push({
+                        x: trackGroup[trackIndex][frameIndex].x,
+                        y: trackGroup[trackIndex][frameIndex].y
+                    });
+                }
+                tracks.push(frameData);
+            }
+            
+            return tracks;
+        }
+        
+        // Import ComfyUI workflow and extract track parameters
+        function importWorkflowJson(workflowData) {
+            try {
+                allTracks = [];
+                trackIdCounter = 0;
+                
+                const generateTracksNodes = workflowData.nodes.filter(node => node.type === 'GenerateTracks');
+                
+                if (generateTracksNodes.length === 0) {
+                    alert('No GenerateTracks nodes found in the workflow.');
+                    return;
+                }
+                
+                generateTracksNodes.forEach((node, index) => {
+                    const params = node.widgets_values;
+                    if (params && params.length >= 13) {
+                        const trackObj = {
+                            id: trackIdCounter++,
+                            name: `Imported Track ${trackIdCounter}`,
+                            color: trackColors[(trackIdCounter - 1) % trackColors.length],
+                            visible: true,
+                            active: index === 0,
+                            startPoint: { x: params[2], y: params[3] },
+                            endPoint: { x: params[4], y: params[5] },
+                            midPoint: { x: params[10], y: params[11] },
+                            bezier: params[9],
+                            interpolation: params[12],
+                            numFrames: params[6],
+                            numTracks: params[7],
+                            trackSpread: params[8],
+                            generatedTracks: []
+                        };
+                        
+                        allTracks.push(trackObj);
+                    }
+                });
+                
+                // Set first track as active
+                activeTrackId = allTracks.length > 0 ? allTracks[0].id : 0;
+                
+                updateTrackList();
+                updatePreview();
+                
+                alert(`Successfully imported ${generateTracksNodes.length} tracks from ComfyUI workflow.`);
+                
+            } catch (error) {
+                alert('Error importing workflow: ' + error.message);
+            }
         }
         
         function generateTrackNode(track, nodeId, posX, posY) {
@@ -1765,8 +2278,11 @@
             visibleTracks.forEach(track => {
                 // Ensure track data is properly generated
                 if (!track.generatedTracks || track.generatedTracks.length === 0) {
+                    console.warn('Track has no generated data:', track.name);
                     return; // Skip tracks with no data
                 }
+                
+                console.log(`Processing track: ${track.name}, frames: ${track.numFrames}, tracks: ${track.numTracks}, generated: ${track.generatedTracks.length}`);
                 
                 // For each track, we need to create multiple sub-tracks based on numTracks
                 for (let trackIndex = 0; trackIndex < track.numTracks; trackIndex++) {
@@ -1777,19 +2293,41 @@
                             const point = track.generatedTracks[frameIndex][trackIndex];
                             
                             trackFrames.push({
-                                x: point.x,
-                                y: point.y
+                                x: Math.round(point.x),
+                                y: Math.round(point.y)
                             });
+                        } else {
+                            console.error(`Missing data at frame ${frameIndex}, track ${trackIndex}. Generated length: ${track.generatedTracks.length}, frame data length: ${track.generatedTracks[frameIndex]?.length || 'undefined'}`);
+                            // Skip incomplete tracks
+                            break;
                         }
                     }
                     // Only add tracks with complete frame data
                     if (trackFrames.length === track.numFrames) {
                         trackCoords.push(trackFrames);
+                        console.log(`Added track ${trackIndex} with ${trackFrames.length} frames`);
+                    } else {
+                        console.warn(`Skipped incomplete track ${trackIndex}: expected ${track.numFrames} frames, got ${trackFrames.length}`);
                     }
                 }
             });
             
-            return JSON.stringify(trackCoords);
+            // Validate final data structure
+            if (trackCoords.length > 0) {
+                const frameCount = trackCoords[0].length;
+                const isValid = trackCoords.every(track => track.length === frameCount);
+                
+                if (!isValid) {
+                    console.error('Inconsistent frame counts detected!');
+                    trackCoords.forEach((track, index) => {
+                        console.log(`Track ${index}: ${track.length} frames`);
+                    });
+                } else {
+                    console.log(`Generated ${trackCoords.length} tracks, each with ${frameCount} frames`);
+                }
+            }
+            
+            return JSON.stringify(trackCoords, null, 2);
         }
         
         // Track management functions
