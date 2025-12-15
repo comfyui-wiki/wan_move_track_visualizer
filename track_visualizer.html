@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WanMove Track Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        
+        .main-content {
+            display: flex;
+            height: calc(100vh - 140px);
+        }
+        
+        .canvas-section {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fafafa;
+            position: relative;
+        }
+        
+        #trackCanvas {
+            border: 1px solid #ccc;
+            cursor: crosshair;
+            background: white;
+        }
+        
+        .controls-section {
+            width: 350px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-left: 1px solid #eee;
+            overflow-y: auto;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .control-group h3 {
+            margin: 0 0 15px 0;
+            color: #2c3e50;
+            font-size: 16px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+        
+        .form-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .form-row label {
+            flex: 1;
+            font-weight: 500;
+            color: #555;
+            font-size: 13px;
+        }
+        
+        .form-row input, .form-row select {
+            flex: 1;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        .form-row input[type="range"] {
+            margin: 0 10px;
+        }
+        
+        .range-display {
+            min-width: 40px;
+            text-align: right;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+        
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+        
+        .btn-success {
+            background: #27ae60;
+            color: white;
+            grid-column: span 2;
+        }
+        
+        .btn-success:hover {
+            background: #229954;
+        }
+        
+        .export-section {
+            margin-top: 20px;
+        }
+        
+        .export-section textarea {
+            width: 100%;
+            height: 120px;
+            margin-top: 10px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 11px;
+            resize: vertical;
+        }
+        
+        .track-info {
+            background: #e8f4f8;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        
+        .track-info strong {
+            color: #2c3e50;
+        }
+        
+        .upload-section {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 10px;
+            transition: border-color 0.3s;
+        }
+        
+        .upload-section:hover {
+            border-color: #3498db;
+        }
+        
+        .upload-section.dragover {
+            border-color: #3498db;
+            background-color: #f8f9fa;
+        }
+        
+        .upload-input {
+            display: none;
+        }
+        
+        .upload-button {
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .upload-button:hover {
+            background: #2980b9;
+        }
+        
+        .image-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        .fit-controls {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        
+        .fit-btn {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        
+        .fit-btn.active {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WanMove Track Visualizer</h1>
+            <p>Interactive tool for creating and visualizing motion tracks compatible with GenerateTracks node</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="canvas-section">
+                <div class="canvas-container">
+                    <canvas id="trackCanvas" width="720" height="720"></canvas>
+                </div>
+                
+                <div class="track-info">
+                    <strong>Instructions:</strong> Click and drag on the canvas to set start/end points. 
+                    Use the controls to adjust track parameters. Export generates data compatible with ComfyUI GenerateTracks node.
+                    <br><strong>Note:</strong> All coordinates are normalized (0-1) and will be scaled to the specified width/height in the node.
+                </div>
+            </div>
+            
+            <div class="controls-section">
+                <div class="control-group">
+                    <h3>Image Upload</h3>
+                    <div class="upload-section" id="uploadSection">
+                        <input type="file" id="imageUpload" class="upload-input" accept="image/*">
+                        <button type="button" class="upload-button" onclick="document.getElementById('imageUpload').click()">Choose Image</button>
+                        <div>or drag & drop an image here</div>
+                        <div class="image-info" id="imageInfo"></div>
+                    </div>
+                </div>
+                
+                <div class="control-group" id="imageScaleGroup" style="display: none;">
+                    <h3>Image Scale (ComfyUI ImageScale)</h3>
+                    <div class="form-row">
+                        <label>Target Width:</label>
+                        <input type="number" id="scaleWidth" value="0" min="0" max="4096" step="16">
+                    </div>
+                    <div class="form-row">
+                        <label>Target Height:</label>
+                        <input type="number" id="scaleHeight" value="0" min="0" max="4096" step="16">
+                    </div>
+                    <div class="form-row">
+                        <label>Upscale Method:</label>
+                        <select id="upscaleMethod">
+                            <option value="nearest-exact">Nearest Exact</option>
+                            <option value="bilinear" selected>Bilinear</option>
+                            <option value="area">Area</option>
+                            <option value="bicubic">Bicubic</option>
+                            <option value="lanczos">Lanczos</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Crop:</label>
+                        <select id="cropMethod">
+                            <option value="disabled" selected>Disabled</option>
+                            <option value="center">Center</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Scaled Size:</label>
+                        <span id="scaledSizeInfo">-</span>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button class="btn-primary" onclick="applyImageScale()">Apply Scale</button>
+                        <button class="btn-secondary" onclick="resetImageScale()">Reset</button>
+                    </div>
+                </div>
+                
+                
+                <div class="control-group">
+                    <h3>Track Parameters</h3>
+                    <div class="form-row">
+                        <label>Start X:</label>
+                        <input type="range" id="startX" min="0" max="1" step="0.01" value="0.1">
+                        <span class="range-display" id="startXValue">0.10</span>
+                    </div>
+                    <div class="form-row">
+                        <label>Start Y:</label>
+                        <input type="range" id="startY" min="0" max="1" step="0.01" value="0.5">
+                        <span class="range-display" id="startYValue">0.50</span>
+                    </div>
+                    <div class="form-row">
+                        <label>End X:</label>
+                        <input type="range" id="endX" min="0" max="1" step="0.01" value="0.9">
+                        <span class="range-display" id="endXValue">0.90</span>
+                    </div>
+                    <div class="form-row">
+                        <label>End Y:</label>
+                        <input type="range" id="endY" min="0" max="1" step="0.01" value="0.5">
+                        <span class="range-display" id="endYValue">0.50</span>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <h3>Bezier Curve</h3>
+                    <div class="form-row">
+                        <label>Enable Bezier:</label>
+                        <input type="checkbox" id="bezierEnable">
+                    </div>
+                    <div class="form-row">
+                        <label>Mid X:</label>
+                        <input type="range" id="midX" min="0" max="1" step="0.01" value="0.5">
+                        <span class="range-display" id="midXValue">0.50</span>
+                    </div>
+                    <div class="form-row">
+                        <label>Mid Y:</label>
+                        <input type="range" id="midY" min="0" max="1" step="0.01" value="0.3">
+                        <span class="range-display" id="midYValue">0.30</span>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <h3>Animation Settings</h3>
+                    <div class="form-row">
+                        <label>Frames:</label>
+                        <input type="number" id="numFrames" value="81" min="1" max="1024">
+                    </div>
+                    <div class="form-row">
+                        <label>Tracks:</label>
+                        <input type="number" id="numTracks" value="5" min="1" max="100">
+                    </div>
+                    <div class="form-row">
+                        <label>Track Spread:</label>
+                        <input type="range" id="trackSpread" min="0" max="0.1" step="0.001" value="0.025">
+                        <span class="range-display" id="trackSpreadValue">0.025</span>
+                    </div>
+                    <div class="form-row">
+                        <label>Interpolation:</label>
+                        <select id="interpolation">
+                            <option value="linear">Linear</option>
+                            <option value="ease_in">Ease In</option>
+                            <option value="ease_out">Ease Out</option>
+                            <option value="ease_in_out">Ease In/Out</option>
+                            <option value="constant">Constant</option>
+                        </select>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button class="btn-primary" onclick="updatePreview()">Update Preview</button>
+                        <button class="btn-secondary" onclick="clearCanvas()">Clear</button>
+                    </div>
+                </div>
+                
+                <div class="control-group export-section">
+                    <h3>Export Settings</h3>
+                    <button class="btn-success" onclick="exportTrackData()">Export Track Data</button>
+                    <textarea id="exportOutput" placeholder="Exported track parameters will appear here..." readonly></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('trackCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let isDragging = false;
+        let dragTarget = null;
+        let tracks = [];
+        let startPoint = { x: 0.1, y: 0.5 };
+        let endPoint = { x: 0.9, y: 0.5 };
+        let midPoint = { x: 0.5, y: 0.3 };
+        let backgroundImage = null;
+        let originalImage = null;
+        let scaledImage = null;
+        let imageFitMode = 'contain';
+        let imageScale = 1;
+        let imageOffset = { x: 0, y: 0 };
+        
+        // Initialize event listeners
+        function initializeEventListeners() {
+            // Range input listeners
+            const rangeInputs = ['startX', 'startY', 'endX', 'endY', 'midX', 'midY', 'trackSpread'];
+            rangeInputs.forEach(id => {
+                const input = document.getElementById(id);
+                const display = document.getElementById(id + 'Value');
+                input.addEventListener('input', () => {
+                    display.textContent = parseFloat(input.value).toFixed(2);
+                    updateFromControls();
+                });
+            });
+            
+            
+            // Other control listeners
+            document.getElementById('bezierEnable').addEventListener('change', updatePreview);
+            document.getElementById('interpolation').addEventListener('change', updatePreview);
+            document.getElementById('numFrames').addEventListener('input', updatePreview);
+            document.getElementById('numTracks').addEventListener('input', updatePreview);
+            
+            // Image scale listeners with real-time update
+            document.getElementById('scaleWidth').addEventListener('input', function() {
+                updateScaledSizeInfo();
+                updateCanvasSizePreview();
+            });
+            document.getElementById('scaleHeight').addEventListener('input', function() {
+                updateScaledSizeInfo();
+                updateCanvasSizePreview();
+            });
+            
+            // Canvas mouse events
+            canvas.addEventListener('mousedown', onMouseDown);
+            canvas.addEventListener('mousemove', onMouseMove);
+            canvas.addEventListener('mouseup', onMouseUp);
+            canvas.addEventListener('mouseleave', onMouseUp);
+            
+            // Image upload events
+            const imageUpload = document.getElementById('imageUpload');
+            const uploadSection = document.getElementById('uploadSection');
+            
+            imageUpload.addEventListener('change', handleImageUpload);
+            
+            // Drag and drop events
+            uploadSection.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadSection.classList.add('dragover');
+            });
+            
+            uploadSection.addEventListener('dragleave', () => {
+                uploadSection.classList.remove('dragover');
+            });
+            
+            uploadSection.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadSection.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0 && files[0].type.startsWith('image/')) {
+                    handleImageFile(files[0]);
+                }
+            });
+        }
+        
+        function updateCanvasSize(width, height) {
+            // Use provided dimensions or get from scaled image
+            if (width && height) {
+                canvas.width = width;
+                canvas.height = height;
+            } else if (backgroundImage) {
+                canvas.width = backgroundImage.width;
+                canvas.height = backgroundImage.height;
+            } else {
+                // Default size when no image
+                canvas.width = 720;
+                canvas.height = 720;
+            }
+            
+            // Auto fit display if we have an image
+            if (backgroundImage) {
+                fitCanvasDisplay();
+            } else {
+                // Reset to default display size for manual canvas sizing
+                canvas.style.width = '';
+                canvas.style.height = '';
+            }
+            
+            calculateImageTransform();
+            updatePreview();
+        }
+        
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleImageFile(file);
+            }
+        }
+        
+        function handleImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    originalImage = img;
+                    backgroundImage = img;
+                    scaledImage = null;
+                    updateImageInfo(img, file);
+                    showImageScaleControls(true);
+                    resetImageScaleInputs(img);
+                    calculateImageTransform();
+                    updatePreview();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function updateImageInfo(img, file) {
+            const fileSize = (file.size / 1024).toFixed(1);
+            const info = `${img.width}×${img.height} • ${fileSize} KB • ${file.name}`;
+            document.getElementById('imageInfo').textContent = info;
+        }
+        
+        function showImageScaleControls(show) {
+            document.getElementById('imageScaleGroup').style.display = show ? 'block' : 'none';
+        }
+        
+        function resetImageScaleInputs(img) {
+            document.getElementById('scaleWidth').value = 0;
+            document.getElementById('scaleHeight').value = 0;
+            updateScaledSizeInfo();
+        }
+        
+        function updateScaledSizeInfo() {
+            if (!originalImage) return;
+            
+            const targetWidth = parseInt(document.getElementById('scaleWidth').value) || 0;
+            const targetHeight = parseInt(document.getElementById('scaleHeight').value) || 0;
+            const scaledSize = calculateImageScaleSize(originalImage.width, originalImage.height, targetWidth, targetHeight);
+            
+            document.getElementById('scaledSizeInfo').textContent = `${scaledSize.width}×${scaledSize.height}`;
+        }
+        
+        function updateCanvasSizePreview() {
+            if (!originalImage) return;
+            
+            const targetWidth = parseInt(document.getElementById('scaleWidth').value) || 0;
+            const targetHeight = parseInt(document.getElementById('scaleHeight').value) || 0;
+            const scaledSize = calculateImageScaleSize(originalImage.width, originalImage.height, targetWidth, targetHeight);
+            
+            // Real-time preview: temporarily update canvas size
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = scaledSize.width;
+            tempCanvas.height = scaledSize.height;
+            
+            // Apply scaling with crop handling
+            const upscaleMethod = document.getElementById('upscaleMethod').value;
+            const cropMethod = document.getElementById('cropMethod').value;
+            
+            tempCtx.imageSmoothingEnabled = upscaleMethod !== 'nearest-exact';
+            if (upscaleMethod === 'bicubic' || upscaleMethod === 'lanczos') {
+                tempCtx.imageSmoothingQuality = 'high';
+            } else if (upscaleMethod === 'bilinear') {
+                tempCtx.imageSmoothingQuality = 'medium';
+            } else {
+                tempCtx.imageSmoothingQuality = 'low';
+            }
+            
+            applyImageScaling(tempCtx, originalImage, scaledSize.width, scaledSize.height, cropMethod);
+            
+            // Temporarily update background image for preview
+            const img = new Image();
+            img.onload = () => {
+                const oldBg = backgroundImage;
+                backgroundImage = img;
+                updateCanvasSize(scaledSize.width, scaledSize.height);
+                backgroundImage = oldBg; // Restore original for actual application
+            };
+            img.src = tempCanvas.toDataURL();
+        }
+        
+        function calculateImageScaleSize(originalWidth, originalHeight, targetWidth, targetHeight) {
+            // Implement ComfyUI ImageScale logic
+            if (targetWidth === 0 && targetHeight === 0) {
+                return { width: originalWidth, height: originalHeight };
+            } else if (targetWidth === 0) {
+                return { 
+                    width: Math.max(1, Math.round(originalWidth * targetHeight / originalHeight)), 
+                    height: targetHeight 
+                };
+            } else if (targetHeight === 0) {
+                return { 
+                    width: targetWidth, 
+                    height: Math.max(1, Math.round(originalHeight * targetWidth / originalWidth)) 
+                };
+            } else {
+                return { width: targetWidth, height: targetHeight };
+            }
+        }
+        
+        function applyImageScaling(ctx, sourceImage, targetWidth, targetHeight, cropMethod) {
+            const sourceWidth = sourceImage.width;
+            const sourceHeight = sourceImage.height;
+            
+            if (cropMethod === 'disabled') {
+                // No crop: stretch to fit target dimensions (may cause distortion)
+                ctx.drawImage(sourceImage, 0, 0, targetWidth, targetHeight);
+            } else if (cropMethod === 'center') {
+                // Center crop: maintain aspect ratio and crop from center
+                const sourceAspect = sourceWidth / sourceHeight;
+                const targetAspect = targetWidth / targetHeight;
+                
+                let drawWidth, drawHeight, sourceX, sourceY, sourceCropWidth, sourceCropHeight;
+                
+                if (sourceAspect > targetAspect) {
+                    // Source is wider than target - crop horizontally
+                    sourceCropHeight = sourceHeight;
+                    sourceCropWidth = sourceHeight * targetAspect;
+                    sourceX = (sourceWidth - sourceCropWidth) / 2;
+                    sourceY = 0;
+                } else {
+                    // Source is taller than target - crop vertically
+                    sourceCropWidth = sourceWidth;
+                    sourceCropHeight = sourceWidth / targetAspect;
+                    sourceX = 0;
+                    sourceY = (sourceHeight - sourceCropHeight) / 2;
+                }
+                
+                // Draw the cropped portion to fill the entire target canvas
+                ctx.drawImage(
+                    sourceImage,
+                    sourceX, sourceY, sourceCropWidth, sourceCropHeight,
+                    0, 0, targetWidth, targetHeight
+                );
+            }
+        }
+        
+        function applyImageScale() {
+            if (!originalImage) return;
+            
+            const targetWidth = parseInt(document.getElementById('scaleWidth').value) || 0;
+            const targetHeight = parseInt(document.getElementById('scaleHeight').value) || 0;
+            const upscaleMethod = document.getElementById('upscaleMethod').value;
+            const cropMethod = document.getElementById('cropMethod').value;
+            
+            const scaledSize = calculateImageScaleSize(originalImage.width, originalImage.height, targetWidth, targetHeight);
+            
+            // Create a new canvas for scaling
+            const scaleCanvas = document.createElement('canvas');
+            const scaleCtx = scaleCanvas.getContext('2d');
+            scaleCanvas.width = scaledSize.width;
+            scaleCanvas.height = scaledSize.height;
+            
+            // Apply scaling with the selected method
+            scaleCtx.imageSmoothingEnabled = upscaleMethod !== 'nearest-exact';
+            if (upscaleMethod === 'bicubic' || upscaleMethod === 'lanczos') {
+                scaleCtx.imageSmoothingQuality = 'high';
+            } else if (upscaleMethod === 'bilinear') {
+                scaleCtx.imageSmoothingQuality = 'medium';
+            } else {
+                scaleCtx.imageSmoothingQuality = 'low';
+            }
+            
+            applyImageScaling(scaleCtx, originalImage, scaledSize.width, scaledSize.height, cropMethod);
+            
+            // Create scaled image
+            const img = new Image();
+            img.onload = () => {
+                scaledImage = img;
+                backgroundImage = img;
+                
+                // Update canvas to use the scaled image size
+                updateCanvasSize(scaledSize.width, scaledSize.height);
+            };
+            img.src = scaleCanvas.toDataURL();
+        }
+        
+        function resetImageScale() {
+            if (!originalImage) return;
+            
+            backgroundImage = originalImage;
+            scaledImage = null;
+            resetImageScaleInputs(originalImage);
+            
+            // Reset canvas to original image size
+            updateCanvasSize(originalImage.width, originalImage.height);
+        }
+        
+        function setImageFit(mode) {
+            // This function is now deprecated in favor of the scaling approach
+            // Keep for backward compatibility but disable functionality
+            console.warn('setImageFit is deprecated. Use Image Scale controls instead.');
+        }
+        
+        function fitCanvasDisplay() {
+            if (!backgroundImage) return;
+            
+            const logicalWidth = canvas.width;
+            const logicalHeight = canvas.height;
+            
+            // Calculate max display size that fits in the container
+            const container = document.querySelector('.canvas-container');
+            const maxWidth = container.clientWidth - 40; // padding
+            const maxHeight = container.clientHeight - 40;
+            
+            // Calculate scale to fit within container while maintaining aspect ratio
+            const scaleX = maxWidth / logicalWidth;
+            const scaleY = maxHeight / logicalHeight;
+            const displayScale = Math.min(scaleX, scaleY, 1); // Don't upscale beyond 1:1
+            
+            // Set canvas display size
+            const displayWidth = logicalWidth * displayScale;
+            const displayHeight = logicalHeight * displayScale;
+            
+            canvas.style.width = displayWidth + 'px';
+            canvas.style.height = displayHeight + 'px';
+            
+            // Keep logical size for coordinates
+            canvas.width = logicalWidth;
+            canvas.height = logicalHeight;
+        }
+        
+        function calculateImageTransform() {
+            if (!backgroundImage) return;
+            
+            // Image is already scaled, just display it 1:1 within the logical canvas
+            imageScale = 1;
+            imageOffset.x = 0;
+            imageOffset.y = 0;
+        }
+        
+        function updateFromControls() {
+            startPoint.x = parseFloat(document.getElementById('startX').value);
+            startPoint.y = parseFloat(document.getElementById('startY').value);
+            endPoint.x = parseFloat(document.getElementById('endX').value);
+            endPoint.y = parseFloat(document.getElementById('endY').value);
+            midPoint.x = parseFloat(document.getElementById('midX').value);
+            midPoint.y = parseFloat(document.getElementById('midY').value);
+            updatePreview();
+        }
+        
+        function onMouseDown(e) {
+            const rect = canvas.getBoundingClientRect();
+            // Convert from display coordinates to logical coordinates
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+            
+            // Check if clicking near existing points
+            const threshold = 0.05;
+            if (Math.abs(x - startPoint.x) < threshold && Math.abs(y - startPoint.y) < threshold) {
+                dragTarget = 'start';
+                isDragging = true;
+            } else if (Math.abs(x - endPoint.x) < threshold && Math.abs(y - endPoint.y) < threshold) {
+                dragTarget = 'end';
+                isDragging = true;
+            } else if (document.getElementById('bezierEnable').checked && 
+                       Math.abs(x - midPoint.x) < threshold && Math.abs(y - midPoint.y) < threshold) {
+                dragTarget = 'mid';
+                isDragging = true;
+            } else {
+                // Set new start point
+                startPoint = { x, y };
+                document.getElementById('startX').value = x;
+                document.getElementById('startY').value = y;
+                document.getElementById('startXValue').textContent = x.toFixed(2);
+                document.getElementById('startYValue').textContent = y.toFixed(2);
+                updatePreview();
+            }
+        }
+        
+        function onMouseMove(e) {
+            if (!isDragging) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            // Convert from display coordinates to logical coordinates
+            const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+            
+            if (dragTarget === 'start') {
+                startPoint = { x, y };
+                document.getElementById('startX').value = x;
+                document.getElementById('startY').value = y;
+                document.getElementById('startXValue').textContent = x.toFixed(2);
+                document.getElementById('startYValue').textContent = y.toFixed(2);
+            } else if (dragTarget === 'end') {
+                endPoint = { x, y };
+                document.getElementById('endX').value = x;
+                document.getElementById('endY').value = y;
+                document.getElementById('endXValue').textContent = x.toFixed(2);
+                document.getElementById('endYValue').textContent = y.toFixed(2);
+            } else if (dragTarget === 'mid') {
+                midPoint = { x, y };
+                document.getElementById('midX').value = x;
+                document.getElementById('midY').value = y;
+                document.getElementById('midXValue').textContent = x.toFixed(2);
+                document.getElementById('midYValue').textContent = y.toFixed(2);
+            }
+            
+            updatePreview();
+        }
+        
+        function onMouseUp() {
+            isDragging = false;
+            dragTarget = null;
+        }
+        
+        function generateTracks() {
+            const numFrames = parseInt(document.getElementById('numFrames').value);
+            const numTracks = parseInt(document.getElementById('numTracks').value);
+            const trackSpread = parseFloat(document.getElementById('trackSpread').value);
+            const bezierEnable = document.getElementById('bezierEnable').checked;
+            const interpolation = document.getElementById('interpolation').value;
+            
+            const width = canvas.width;
+            const height = canvas.height;
+            const startXPx = startPoint.x * width;
+            const startYPx = startPoint.y * height;
+            const midXPx = midPoint.x * width;
+            const midYPx = midPoint.y * height;
+            const endXPx = endPoint.x * width;
+            const endYPx = endPoint.y * height;
+            const trackSpreadPx = trackSpread * (width + height) / 2;
+            
+            tracks = [];
+            
+            for (let frame = 0; frame < numFrames; frame++) {
+                const t = frame / (numFrames - 1);
+                let interpValue;
+                
+                // Apply interpolation
+                switch (interpolation) {
+                    case 'constant':
+                        interpValue = 0;
+                        break;
+                    case 'linear':
+                        interpValue = t;
+                        break;
+                    case 'ease_in':
+                        interpValue = t * t;
+                        break;
+                    case 'ease_out':
+                        interpValue = 1 - (1 - t) * (1 - t);
+                        break;
+                    case 'ease_in_out':
+                        interpValue = t * t * (3 - 2 * t);
+                        break;
+                    default:
+                        interpValue = t;
+                }
+                
+                let x, y, tangentX, tangentY;
+                
+                if (bezierEnable) {
+                    const tInterp = interpValue;
+                    const oneMinusT = 1 - tInterp;
+                    x = oneMinusT * oneMinusT * startXPx + 2 * oneMinusT * tInterp * midXPx + tInterp * tInterp * endXPx;
+                    y = oneMinusT * oneMinusT * startYPx + 2 * oneMinusT * tInterp * midYPx + tInterp * tInterp * endYPx;
+                    tangentX = 2 * oneMinusT * (midXPx - startXPx) + 2 * tInterp * (endXPx - midXPx);
+                    tangentY = 2 * oneMinusT * (midYPx - startYPx) + 2 * tInterp * (endYPx - midYPx);
+                } else {
+                    x = startXPx + (endXPx - startXPx) * interpValue;
+                    y = startYPx + (endYPx - startYPx) * interpValue;
+                    tangentX = endXPx - startXPx;
+                    tangentY = endYPx - startYPx;
+                }
+                
+                // Calculate perpendicular direction
+                const length = Math.sqrt(tangentX * tangentX + tangentY * tangentY);
+                let perpX = 1, perpY = 0;
+                if (length > 0) {
+                    perpX = -tangentY / length;
+                    perpY = tangentX / length;
+                }
+                
+                const frameData = [];
+                for (let trackIdx = 0; trackIdx < numTracks; trackIdx++) {
+                    const offset = (trackIdx - (numTracks - 1) / 2) * trackSpreadPx;
+                    const trackX = x + perpX * offset;
+                    const trackY = y + perpY * offset;
+                    frameData.push({ x: trackX, y: trackY });
+                }
+                tracks.push(frameData);
+            }
+        }
+        
+        function updatePreview() {
+            generateTracks();
+            drawTracks();
+        }
+        
+        function drawTracks() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw background image if available
+            if (backgroundImage) {
+                ctx.save();
+                ctx.translate(imageOffset.x, imageOffset.y);
+                ctx.scale(imageScale, imageScale);
+                ctx.drawImage(backgroundImage, 0, 0);
+                ctx.restore();
+            } else {
+                // Draw grid only if no background image
+                ctx.strokeStyle = '#f0f0f0';
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= 10; i++) {
+                    const x = i * canvas.width / 10;
+                    const y = i * canvas.height / 10;
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, canvas.height);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                    ctx.stroke();
+                }
+            }
+            
+            if (tracks.length === 0) return;
+            
+            // Draw track paths
+            const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6'];
+            const numTracks = tracks[0].length;
+            
+            for (let trackIdx = 0; trackIdx < numTracks; trackIdx++) {
+                ctx.strokeStyle = colors[trackIdx % colors.length];
+                ctx.fillStyle = colors[trackIdx % colors.length];
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                for (let frameIdx = 0; frameIdx < tracks.length; frameIdx++) {
+                    const point = tracks[frameIdx][trackIdx];
+                    if (frameIdx === 0) {
+                        ctx.moveTo(point.x, point.y);
+                    } else {
+                        ctx.lineTo(point.x, point.y);
+                    }
+                }
+                ctx.stroke();
+                
+                // Draw arrows along the path
+                drawArrowsOnPath(tracks, trackIdx, colors[trackIdx % colors.length]);
+                
+                // Draw track points
+                for (let frameIdx = 0; frameIdx < tracks.length; frameIdx += Math.max(1, Math.floor(tracks.length / 20))) {
+                    const point = tracks[frameIdx][trackIdx];
+                    ctx.fillStyle = colors[trackIdx % colors.length];
+                    ctx.beginPath();
+                    ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+            }
+            
+            // Draw control points
+            const bezierEnabled = document.getElementById('bezierEnable').checked;
+            
+            // Start point
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath();
+            ctx.arc(startPoint.x * canvas.width, startPoint.y * canvas.height, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(startPoint.x * canvas.width, startPoint.y * canvas.height, 5, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // End point
+            ctx.fillStyle = '#27ae60';
+            ctx.beginPath();
+            ctx.arc(endPoint.x * canvas.width, endPoint.y * canvas.height, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(endPoint.x * canvas.width, endPoint.y * canvas.height, 5, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Mid point (bezier control)
+            if (bezierEnabled) {
+                ctx.fillStyle = '#f39c12';
+                ctx.beginPath();
+                ctx.arc(midPoint.x * canvas.width, midPoint.y * canvas.height, 8, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(midPoint.x * canvas.width, midPoint.y * canvas.height, 5, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Draw bezier control lines
+                ctx.strokeStyle = '#f39c12';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
+                ctx.lineTo(midPoint.x * canvas.width, midPoint.y * canvas.height);
+                ctx.lineTo(endPoint.x * canvas.width, endPoint.y * canvas.height);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+        
+        function drawArrowsOnPath(tracks, trackIdx, color) {
+            if (tracks.length < 2) return;
+            
+            ctx.fillStyle = color;
+            const arrowSize = 8;
+            const spacing = Math.max(3, Math.floor(tracks.length / 6)); // Show 6 arrows max
+            
+            for (let frameIdx = spacing; frameIdx < tracks.length; frameIdx += spacing) {
+                const currentPoint = tracks[frameIdx][trackIdx];
+                const prevPoint = tracks[frameIdx - 1][trackIdx];
+                
+                // Calculate arrow direction
+                const dx = currentPoint.x - prevPoint.x;
+                const dy = currentPoint.y - prevPoint.y;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                
+                if (length < 1) continue; // Skip if points are too close
+                
+                // Normalize direction
+                const unitX = dx / length;
+                const unitY = dy / length;
+                
+                // Calculate arrow position (slightly ahead of current point)
+                const arrowX = currentPoint.x + unitX * 5;
+                const arrowY = currentPoint.y + unitY * 5;
+                
+                // Draw arrow
+                drawArrow(arrowX, arrowY, unitX, unitY, arrowSize, color);
+            }
+        }
+        
+        function drawArrow(x, y, dirX, dirY, size, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(Math.atan2(dirY, dirX));
+            
+            ctx.fillStyle = color;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
+            
+            // Draw arrow shape
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-size, -size/2);
+            ctx.lineTo(-size * 0.6, 0);
+            ctx.lineTo(-size, size/2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        function clearCanvas() {
+            tracks = [];
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            document.getElementById('exportOutput').value = '';
+        }
+        
+        function exportTrackData() {
+            if (tracks.length === 0) {
+                updatePreview();
+            }
+            
+            const exportData = {
+                width: canvas.width,
+                height: canvas.height,
+                start_x: parseFloat(document.getElementById('startX').value),
+                start_y: parseFloat(document.getElementById('startY').value),
+                end_x: parseFloat(document.getElementById('endX').value),
+                end_y: parseFloat(document.getElementById('endY').value),
+                mid_x: parseFloat(document.getElementById('midX').value),
+                mid_y: parseFloat(document.getElementById('midY').value),
+                num_frames: parseInt(document.getElementById('numFrames').value),
+                num_tracks: parseInt(document.getElementById('numTracks').value),
+                track_spread: parseFloat(document.getElementById('trackSpread').value),
+                bezier: document.getElementById('bezierEnable').checked,
+                interpolation: document.getElementById('interpolation').value
+            };
+            
+            document.getElementById('exportOutput').value = JSON.stringify(exportData, null, 2);
+        }
+        
+        // Initialize the application
+        initializeEventListeners();
+        updatePreview();
+    </script>
+</body>
+</html>
